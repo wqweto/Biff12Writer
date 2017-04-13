@@ -10,7 +10,7 @@ Attribute VB_Name = "cBiff12Container"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
-Attribute VB_Exposed = True
+Attribute VB_Exposed = False
 '=========================================================================
 '
 ' Biff12Writer (c) 2017 by wqweto@gmail.com
@@ -33,7 +33,7 @@ Private Const CP_UTF8                       As Long = 65001
 
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
 Private Declare Function ApiEmptyBiff12PartArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbObject, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As cBiff12Part()
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
     Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
     Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
     Private Declare Function ApiEmptyByteArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbByte, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As Byte()
@@ -61,6 +61,7 @@ Private Type UcsPartType
     ContentType         As String
     Relations()         As UcsRelationType
     RelationsIndex      As Collection
+    ImagesParts()       As cBiff12Part
 End Type
 
 Private Type UcsStateType
@@ -73,6 +74,8 @@ Private Type UcsStateType
     ThemeParts()        As cBiff12Part
     StringsPart         As cBiff12Part
     SheetParts()        As cBiff12Part
+    DrawingParts()      As cBiff12Part
+    ImagesParts()       As cBiff12Part
 End Type
 
 '=========================================================================
@@ -174,6 +177,32 @@ Property Get SheetPart(Optional ByVal Index As Long = 1) As cBiff12Part
     End If
 End Property
 
+Property Get DrawingPart(Optional ByVal Index As Long = 1) As cBiff12Part
+    Const STR_NS1       As String = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+    Const STR_NS2       As String = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    
+    If UBound(m_uState.DrawingParts) >= Index Then
+        Set DrawingPart = m_uState.DrawingParts(Index)
+    End If
+    If DrawingPart Is Nothing Then
+        Set DrawingPart = AddXmlPart(Replace("/xl/drawings/drawing{0}.xml", "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing", "application/vnd.openxmlformats-officedocument.drawing+xml")
+        If UBound(m_uState.DrawingParts) < Index Then
+            ReDim Preserve m_uState.DrawingParts(0 To Index) As cBiff12Part
+        End If
+        Set m_uState.DrawingParts(Index) = DrawingPart
+        AddRelation SheetPart(Index), DrawingPart
+        With DrawingPart.XmlDocument
+            With .appendChild(.createNode(1, "xdr:wsDr", STR_NS1))
+                .setAttribute "xmlns:a", STR_NS2
+            End With
+        End With
+    End If
+End Property
+
+Property Get ImagePartsCount() As Long
+    ImagePartsCount = UBound(m_uState.ImagesParts) + 1
+End Property
+
 '=========================================================================
 ' Methods
 '=========================================================================
@@ -216,6 +245,32 @@ Public Function AddPart(sPartName As String, sPartType As String, vContents As V
     End With
 End Function
 
+Public Function AddImageToSheet(oSheetPart As cBiff12Part, Optional SheetDrawingPart As cBiff12Part) As cBiff12Part
+    Dim lIdx            As Long
+    Dim lCount          As Long
+    
+    lIdx = m_uState.PartsIndex.Item(oSheetPart.Name)
+    If SheetDrawingPart Is Nothing Then
+        Set SheetDrawingPart = DrawingPart(lIdx)
+    End If
+    lCount = UBound(m_uState.ImagesParts) + 1
+    Set AddImageToSheet = AddBinPart(Replace("/xl/media/image{0}.png", "{0}", lCount + 1), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", "image/png")
+    ReDim Preserve m_uState.ImagesParts(0 To lCount)
+    Set m_uState.ImagesParts(lCount) = AddImageToSheet
+    AddRelation SheetDrawingPart, AddImageToSheet
+    '--- append to sheet images
+    With m_uState.Parts(lIdx)
+        If Peek(ArrPtr(.ImagesParts)) = 0 Then
+            lCount = 0
+            ReDim .ImagesParts(0 To lCount) As cBiff12Part
+        Else
+            lCount = UBound(.ImagesParts) + 1
+            ReDim Preserve .ImagesParts(0 To lCount) As cBiff12Part
+        End If
+        Set .ImagesParts(lCount) = AddImageToSheet
+    End With
+End Function
+
 Public Function AddRelation(oPart As cBiff12Part, oTarget As cBiff12Part) As String
     If Not oPart Is Nothing And Not oTarget Is Nothing Then
         AddRelation = pvAddRelation(oPart.Name, pvPathDifference(oPart.Name, oTarget.Name), oTarget.Type_)
@@ -236,6 +291,18 @@ Public Function GetRelID(oPart As cBiff12Part, oTarget As cBiff12Part) As String
     End With
 End Function
 
+Public Function GetImagesCount(oSheetPart As cBiff12Part, Optional SheetDrawingPart As cBiff12Part) As Long
+    Dim lIdx            As Long
+    
+    lIdx = m_uState.PartsIndex.Item(oSheetPart.Name)
+    With m_uState.Parts(lIdx)
+        If Peek(ArrPtr(.ImagesParts)) <> 0 Then
+            GetImagesCount = UBound(.ImagesParts) + 1
+            Set SheetDrawingPart = DrawingPart(lIdx)
+        End If
+    End With
+End Function
+
 Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) As Boolean
     Const STR_NS        As String = "http://schemas.openxmlformats.org/package/2006/content-types"
     Dim oDoc            As Object
@@ -252,6 +319,7 @@ Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) 
     cDefaults.Add "bin=application/vnd.ms-excel.sheet.binary.macroEnabled.main", "bin"
     cDefaults.Add "rels=application/vnd.openxmlformats-package.relationships+xml", "rels"
     cDefaults.Add "xml=application/xml", "xml"
+    cDefaults.Add "png=image/png", "png"
     Set cOverwrite = New Collection
     For lIdx = 1 To UBound(m_uState.Parts)
         With m_uState.Parts(lIdx)
@@ -275,15 +343,15 @@ Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) 
     For Each vElem In cDefaults
         vElem = Split(vElem, "=")
         With oRoot.appendChild(oDoc.createNode(1, "Default", STR_NS))
-            .Attributes.setNamedItem(oDoc.createAttribute("Extension")).Value = vElem(0)
-            .Attributes.setNamedItem(oDoc.createAttribute("ContentType")).Value = vElem(1)
+            .setAttribute "Extension", vElem(0)
+            .setAttribute "ContentType", vElem(1)
         End With
     Next
     For Each vElem In cOverwrite
         vElem = Split(vElem, "=")
         With oRoot.appendChild(oDoc.createNode(1, "Override", STR_NS))
-            .Attributes.setNamedItem(oDoc.createAttribute("PartName")).Value = vElem(0)
-            .Attributes.setNamedItem(oDoc.createAttribute("ContentType")).Value = vElem(1)
+            .setAttribute "PartName", vElem(0)
+            .setAttribute "ContentType", vElem(1)
         End With
     Next
     '--- output all parts to archive
@@ -341,9 +409,9 @@ Private Sub pvWriteRelations(oArchive As cZipArchive, sFile As String, uRels() A
         Set oRoot = oDoc.appendChild(oDoc.createNode(1, "Relationships", STR_NS))
         For lIdx = 0 To UBound(uRels)
             With oRoot.appendChild(oDoc.createNode(1, "Relationship", STR_NS))
-                .Attributes.setNamedItem(oDoc.createAttribute("Id")).Value = uRels(lIdx).Id
-                .Attributes.setNamedItem(oDoc.createAttribute("Type")).Value = uRels(lIdx).RelType
-                .Attributes.setNamedItem(oDoc.createAttribute("Target")).Value = uRels(lIdx).RelTarget
+                .setAttribute "Id", uRels(lIdx).Id
+                .setAttribute "Type", uRels(lIdx).RelType
+                .setAttribute "Target", uRels(lIdx).RelTarget
             End With
         Next
         Set oPart = New cBiff12Part
@@ -396,7 +464,7 @@ EH:
     Resume Next
 End Function
 
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
 
 Private Function Peek(ByVal lPtr As Long) As Long
     Call CopyMemory(Peek, ByVal lPtr, 4)
@@ -440,6 +508,8 @@ End Sub
 Private Sub Class_Initialize()
     m_uState.ThemeParts = ApiEmptyBiff12PartArray()
     m_uState.SheetParts = ApiEmptyBiff12PartArray()
+    m_uState.DrawingParts = ApiEmptyBiff12PartArray()
+    m_uState.ImagesParts = ApiEmptyBiff12PartArray()
     AddXmlPart STR_ROOT, "package", vbNullString
 End Sub
 

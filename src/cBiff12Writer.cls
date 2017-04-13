@@ -10,7 +10,7 @@ Attribute VB_Name = "cBiff12Writer"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
-Attribute VB_Exposed = True
+Attribute VB_Exposed = False
 '=========================================================================
 '
 ' Biff12Writer (c) 2017 by wqweto@gmail.com
@@ -205,6 +205,85 @@ EH:
     Resume Next
 End Function
 
+Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lWidth As Long, ByVal lHeight As Long)
+    Const STR_NS3       As String = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    Const STR_NS4       As String = "http://schemas.microsoft.com/office/drawing/2010/main"
+    Dim oDrawingPart    As cBiff12Part
+    Dim oImagePart      As cBiff12Part
+    Dim oDoc            As Object
+    Dim oAttr           As Object
+    Dim baTemp()        As Byte
+    
+    Set oImagePart = m_oContainer.AddImageToSheet(m_oSheetPart, SheetDrawingPart:=oDrawingPart)
+    baTemp = baData
+    oImagePart.Contents = baTemp
+    Set oDoc = oDrawingPart.XmlDocument
+    With oDoc.documentElement.appendChild(oDoc.createElement("xdr:twoCellAnchor"))
+        .setAttribute "editAs", "oneCell"
+        With .appendChild(oDoc.createElement("xdr:from"))
+            .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
+            .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = 1
+            .appendChild(oDoc.createElement("xdr:row")).nodeTypedValue = m_uRowHdr.m_rw
+            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = 0
+        End With
+        With .appendChild(oDoc.createElement("xdr:to"))
+            .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
+            .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = lWidth
+            .appendChild(oDoc.createElement("xdr:row")).nodeTypedValue = m_uRowHdr.m_rw
+            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lHeight
+        End With
+        With .appendChild(oDoc.createElement("xdr:pic"))
+            With .appendChild(oDoc.createElement("xdr:nvPicPr"))
+                With .appendChild(oDoc.createElement("xdr:cNvPr"))
+                    .setAttribute "id", m_oContainer.ImagePartsCount
+                    .setAttribute "name", "Picture " & m_oContainer.ImagePartsCount
+                End With
+                With .appendChild(oDoc.createElement("xdr:cNvPicPr"))
+                    With .appendChild(oDoc.createElement("a:picLocks"))
+                        .setAttribute "noChangeAspect", 1
+                    End With
+                End With
+            End With
+            With .appendChild(oDoc.createElement("xdr:blipFill"))
+                With .appendChild(oDoc.createElement("a:blip"))
+                    Set oAttr = oDoc.createNode(2, "r:embed", STR_NS3)
+                    oAttr.nodeValue = m_oContainer.GetRelID(oDrawingPart, oImagePart)
+                    .setAttributeNode oAttr
+                    .setAttribute "cstate", "print"
+                    With .appendChild(oDoc.createElement("a:extLst"))
+                        With .appendChild(oDoc.createElement("a:ext"))
+                            .setAttribute "uri", "{28A0092B-C50C-407E-A947-70E740481C1C}"
+                            With .appendChild(oDoc.createNode(1, "a14:useLocalDpi", STR_NS4))
+                                .setAttribute "val", 0
+                            End With
+                        End With
+                    End With
+                End With
+                With .appendChild(oDoc.createElement("a:stretch"))
+                    .appendChild oDoc.createElement("a:fillRect")
+                End With
+            End With
+            With .appendChild(oDoc.createElement("xdr:spPr"))
+                With .appendChild(oDoc.createElement("a:xfrm"))
+                    With .appendChild(oDoc.createElement("a:off"))
+                        .setAttribute "x", 0
+                        .setAttribute "y", 0
+                    End With
+                    With .appendChild(oDoc.createElement("a:ext"))
+                        .setAttribute "cx", lWidth
+                        .setAttribute "cy", lHeight
+                    End With
+                End With
+                With .appendChild(oDoc.createElement("a:prstGeom"))
+                    .setAttribute "prst", "rect"
+                    .appendChild oDoc.createElement("a:avLst")
+                End With
+            End With
+        End With
+        .appendChild oDoc.createElement("xdr:clientData")
+    End With
+End Function
+
 Public Sub Flush()
     If Not m_bFlushed Then
         pvEndSheet m_oSheetPart
@@ -316,6 +395,7 @@ End Sub
 
 Private Sub pvEndSheet(oPart As cBiff12Part)
     Dim lIdx            As Long
+    Dim oDrawingPart    As cBiff12Part
     
     With oPart
         .Output ucsBrtEndSheetData
@@ -326,6 +406,10 @@ Private Sub pvEndSheet(oPart As cBiff12Part)
                 .OutputBrtMergeCell m_aMergeCells(lIdx)
             Next
             .Output ucsBrtEndMergeCells
+        End If
+        '--- BrtDrawing
+        If m_oContainer.GetImagesCount(m_oSheetPart, SheetDrawingPart:=oDrawingPart) > 0 Then
+            .OutputBrtDrawing m_oContainer.GetRelID(m_oSheetPart, oDrawingPart)
         End If
         .Output ucsBrtEndSheet
         '--- fix WsDim record
@@ -603,7 +687,7 @@ Private Function pvToBrtColor(ByVal clrValue As Long, Optional ByVal lAlpha As L
     End With
 End Function
 
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
 
 Private Function SearchCollection(ByVal pCol As Object, Index As Variant, Optional RetVal As Variant) As Boolean
     On Error GoTo QH

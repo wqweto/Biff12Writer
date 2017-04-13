@@ -10,7 +10,7 @@ Attribute VB_Name = "cBiff12Part"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
-Attribute VB_Exposed = True
+Attribute VB_Exposed = False
 '=========================================================================
 '
 ' Biff12Writer (c) 2017 by wqweto@gmail.com
@@ -36,7 +36,7 @@ Private Const FILE_END                  As Long = 2
 Private Const CP_UTF8                       As Long = 65001
 
 Private Declare Function CLSIDFromString Lib "ole32.dll" (ByVal lpsz As Long, pclsid As Any) As Long
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
     Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
     Private Declare Function MultiByteToWideChar Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long) As Long
 #End If ' ImplUseShared
@@ -867,6 +867,8 @@ Public Enum UcsBiff12RecortTypeEnum
     ucsBrtSXDI15 = &H858
 End Enum
 
+#If ImplUseShared = 0 Then
+
 Public Type UcsBiff12BrtColorType
     m_xColorType        As Byte
     m_index             As Byte
@@ -1021,6 +1023,8 @@ Public Type UcsBiff12BrtFileVersionType
     m_stRupBuild        As String
 End Type
 
+#End If ' ImplUseShared
+
 '=========================================================================
 ' API
 '=========================================================================
@@ -1051,7 +1055,7 @@ Private m_lSstCapacity              As Long
 Private m_sName                     As String
 Private m_sType                     As String
 Private m_oXmlDocument              As Object
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
 Private m_uPeekArray                As UcsSafeArraySingleDimension
 Private m_aPeekBuffer()             As Integer
 #End If ' ImplUseShared
@@ -1069,7 +1073,7 @@ Private Type UcsSstHashEntryType
     NextEntry           As Long
 End Type
 
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
 Private Type UcsSafeArraySingleDimension
     cDims       As Integer      '--- usually 1
     fFeatures   As Integer      '--- leave 0
@@ -1536,7 +1540,11 @@ End Function
 
 '= output brt structs ====================================================
 
+#If ImplUseShared Then
+Friend Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
+#Else
 Public Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
+#End If
     Const FIXED_SIZE    As Long = 2
     Dim lSize           As Long
     
@@ -1548,7 +1556,11 @@ Public Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
     Debug.Assert OutputBrtFmt + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
+#Else
 Public Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
+#End If
     Const FIXED_SIZE    As Long = 21
     Dim lSize           As Long
     
@@ -1560,7 +1572,11 @@ Public Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
     Debug.Assert OutputBrtFont + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
+#Else
 Public Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
+#End If
     Const FIXED_SIZE    As Long = 68
     Const GRSTOP_SIZE   As Long = 16
     Dim lSize           As Long
@@ -1576,7 +1592,11 @@ Public Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
     Debug.Assert OutputBrtFill + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
+#Else
 Public Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
+#End If
     Const FIXED_SIZE    As Long = 50
     Dim lSize           As Long
 
@@ -1588,7 +1608,11 @@ Public Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
     Debug.Assert OutputBrtBorder + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
+#Else
 Public Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
+#End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
 
@@ -1599,7 +1623,11 @@ Public Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
     Debug.Assert OutputBrtXf + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
+#Else
 Public Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
+#End If
     Const FIXED_SIZE    As Long = 8
     Dim lSize           As Long
 
@@ -1611,7 +1639,11 @@ Public Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
     Debug.Assert OutputBrtStyle + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
+#Else
 Public Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
+#End If
     Const FIXED_SIZE    As Long = 8
     Dim lSize           As Long
 
@@ -1623,7 +1655,11 @@ Public Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
     Debug.Assert OutputBrtWbProp + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
+#Else
 Public Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
+#End If
     Const FIXED_SIZE    As Long = 29
     Dim lSize           As Long
 
@@ -1634,7 +1670,11 @@ Public Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
     Debug.Assert OutputBrtBookView + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
+#Else
 Public Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
+#End If
     Const FIXED_SIZE    As Long = 8
     Dim lSize           As Long
 
@@ -1647,7 +1687,11 @@ Public Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
     Debug.Assert OutputBrtBundleSh + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
+#Else
 Public Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
+#End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
 
@@ -1658,7 +1702,11 @@ Public Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
     Debug.Assert OutputBrtWsDim + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
+#Else
 Public Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
+#End If
     Const FLAGS_SIZE    As Long = 3
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
@@ -1672,7 +1720,11 @@ Public Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
     Debug.Assert OutputBrtWsProp + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
+#Else
 Public Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
+#End If
     Const FIXED_SIZE    As Long = 18
     Dim lSize           As Long
 
@@ -1683,7 +1735,11 @@ Public Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
     Debug.Assert OutputBrtColInfo + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
+#Else
 Public Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
+#End If
     Const FIXED_SIZE    As Long = 10
     Const COLSPAN_SIZE  As Long = 8
     Dim lSize           As Long
@@ -1701,7 +1757,11 @@ Public Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
     Debug.Assert OutputBrtRowHdr + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As Long
+#Else
 Public Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As Long
+#End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
 
@@ -1712,7 +1772,11 @@ Public Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As L
     Debug.Assert OutputBrtMergeCell + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
+#Else
 Public Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
+#End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
 
@@ -1723,7 +1787,11 @@ Public Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
     Debug.Assert OutputBrtOleSize + lSize = m_lPosition
 End Function
 
+#If ImplUseShared Then
+Friend Function OutputBrtFileVersion(uFileVersion As UcsBiff12BrtFileVersionType) As Long
+#Else
 Public Function OutputBrtFileVersion(uFileVersion As UcsBiff12BrtFileVersionType) As Long
+#End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
 
@@ -1735,6 +1803,15 @@ Public Function OutputBrtFileVersion(uFileVersion As UcsBiff12BrtFileVersionType
     WriteString uFileVersion.m_stLowestEdited
     WriteString uFileVersion.m_stRupBuild
     Debug.Assert OutputBrtFileVersion + lSize = m_lPosition
+End Function
+
+Public Function OutputBrtDrawing(sRelId As String) As Long
+    Dim lSize           As Long
+    
+    lSize = 4 + LenB(sRelId)
+    OutputBrtDrawing = WriteRecord(ucsBrtDrawing, lSize)
+    WriteString sRelId
+    Debug.Assert OutputBrtDrawing + lSize = m_lPosition
 End Function
 
 Public Function OutputBrtSstItem(sText As String) As Long
@@ -1896,7 +1973,7 @@ Private Function pvHexPad(ByVal lValue As Long, ByVal lSize As Long) As String
     pvHexPad = Right$(String$(lSize, "0") & Hex$(lValue), lSize)
 End Function
 
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
 
 Private Function ToUtf8Array(sText As String) As Byte()
     Dim baRetVal()      As Byte
@@ -1950,6 +2027,7 @@ End Function
 '=========================================================================
 
 Private Sub Class_Terminate()
+    '--- clear peek buffer safe array
     RollingHash 0, 0
 End Sub
 

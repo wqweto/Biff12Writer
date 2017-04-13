@@ -10,7 +10,7 @@ Attribute VB_Name = "cBiff12CellStyle"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = True
 Attribute VB_PredeclaredId = False
-Attribute VB_Exposed = True
+Attribute VB_Exposed = False
 '=========================================================================
 '
 ' Biff12Writer (c) 2017 by wqweto@gmail.com
@@ -28,7 +28,7 @@ DefObj A-Z
 ' Public enums
 '=========================================================================
 
-#If Not ImplUseShared Then
+#If ImplUseShared = 0 Then
 
 Public Enum UcsHorAlignmentEnum
     ucsHalLeft = 0
