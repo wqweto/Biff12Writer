@@ -1,37 +1,21 @@
 VERSION 5.00
 Object = "{6B7E6392-850A-101B-AFC0-4210102A8DA7}#1.3#0"; "COMCTL32.OCX"
-Object = "{3B7C8863-D78F-101B-B9B5-04021C009402}#1.2#0"; "RICHTX32.OCX"
+Object = "{8405D0DF-9FDD-4829-AEAD-8E2B0A18FEA4}#1.0#0"; "Inked.dll"
 Begin VB.Form Form1 
-   Caption         =   "Form1"
+   Caption         =   "Biff12 Explorer"
    ClientHeight    =   8232
-   ClientLeft      =   108
-   ClientTop       =   456
+   ClientLeft      =   192
+   ClientTop       =   840
    ClientWidth     =   15408
    LinkTopic       =   "Form1"
    ScaleHeight     =   8232
    ScaleWidth      =   15408
    StartUpPosition =   3  'Windows Default
-   Begin VB.CommandButton Command3 
-      Caption         =   "Test writer"
-      Height          =   516
-      Left            =   3444
-      TabIndex        =   2
-      Top             =   168
-      Width           =   1440
-   End
-   Begin VB.CommandButton Command2 
-      Caption         =   "Minimal save"
-      Height          =   516
-      Left            =   1848
-      TabIndex        =   1
-      Top             =   168
-      Width           =   1440
-   End
    Begin ComctlLib.TreeView TreeView1 
       Height          =   5808
-      Left            =   168
-      TabIndex        =   3
-      Top             =   840
+      Left            =   84
+      TabIndex        =   0
+      Top             =   84
       Width           =   5304
       _ExtentX        =   9356
       _ExtentY        =   10245
@@ -43,39 +27,16 @@ Begin VB.Form Form1
       ImageList       =   "ImageList1"
       Appearance      =   1
    End
-   Begin VB.CommandButton Command1 
-      Caption         =   "Open .xlsb file"
-      Height          =   516
-      Left            =   252
-      TabIndex        =   0
-      Top             =   168
-      Width           =   1440
-   End
-   Begin RichTextLib.RichTextBox RichTextBox1 
+   Begin INKEDLibCtl.InkEdit RichTextBox1 
       Height          =   5724
-      Left            =   5628
-      TabIndex        =   4
-      Top             =   840
-      Width           =   4464
-      _ExtentX        =   7874
-      _ExtentY        =   10097
-      _Version        =   393217
-      Enabled         =   -1  'True
-      ScrollBars      =   2
-      Appearance      =   0
-      TextRTF         =   $"Form1.frx":0000
-      BeginProperty Font {0BE35203-8F91-11CE-9DE3-00AA004BB851} 
-         Name            =   "Consolas"
-         Size            =   10.8
-         Charset         =   204
-         Weight          =   400
-         Underline       =   0   'False
-         Italic          =   0   'False
-         Strikethrough   =   0   'False
-      EndProperty
+      Left            =   5964
+      OleObjectBlob   =   "Form1.frx":0000
+      TabIndex        =   1
+      Top             =   84
+      Width           =   4800
    End
    Begin ComctlLib.ImageList ImageList1 
-      Left            =   9324
+      Left            =   5544
       Top             =   84
       _ExtentX        =   974
       _ExtentY        =   974
@@ -87,14 +48,49 @@ Begin VB.Form Form1
       BeginProperty Images {0713E8C2-850A-101B-AFC0-4210102A8DA7} 
          NumListImages   =   2
          BeginProperty ListImage1 {0713E8C3-850A-101B-AFC0-4210102A8DA7} 
-            Picture         =   "Form1.frx":0088
+            Picture         =   "Form1.frx":0273
             Key             =   "doc"
          EndProperty
          BeginProperty ListImage2 {0713E8C3-850A-101B-AFC0-4210102A8DA7} 
-            Picture         =   "Form1.frx":05DA
+            Picture         =   "Form1.frx":07C5
             Key             =   "folder"
          EndProperty
       EndProperty
+   End
+   Begin VB.Menu mnuMain 
+      Caption         =   "File"
+      Index           =   0
+      Begin VB.Menu mnuFile 
+         Caption         =   "New"
+         Index           =   0
+         Shortcut        =   ^N
+      End
+      Begin VB.Menu mnuFile 
+         Caption         =   "Open..."
+         Index           =   1
+         Shortcut        =   ^O
+      End
+      Begin VB.Menu mnuFile 
+         Caption         =   "-"
+         Index           =   2
+      End
+      Begin VB.Menu mnuFile 
+         Caption         =   "Exit"
+         Index           =   3
+         Shortcut        =   ^W
+      End
+   End
+   Begin VB.Menu mnuMain 
+      Caption         =   "Debug"
+      Index           =   1
+      Begin VB.Menu mnuDebug 
+         Caption         =   "Minimal save"
+         Index           =   0
+      End
+      Begin VB.Menu mnuDebug 
+         Caption         =   "Test writer"
+         Index           =   1
+      End
    End
 End
 Attribute VB_Name = "Form1"
@@ -134,13 +130,21 @@ Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpvDest As 
 ' Constants and member variables
 '=========================================================================
 
-Private Const TEMP_FOLDER           As String = "D:\TEMP\Biff12"
+Private Const TEMP_FOLDER           As String = "C:\TEMP" ' "D:\TEMP\Biff12"
 Private Const STR_DUMMY             As String = "$dummy"
-Private Const STR_OPEN_FILTER       As String = "XLSB - Excel binary book|*.xlsb|All files (*.*)|*.*"
+Private Const STR_OPEN_FILTER       As String = "Excel book (*.xlsb;*.xlsx)|*.xlsb;*.xlsx|All files (*.*)|*.*"
 Private Const STR_OPEN_TITLE        As String = "Load BIFF12 file"
 
 Private m_oZip                  As cZipArchive
 Private m_lSeqNo                As Long
+
+Private Enum UcsMenuEnum
+    ucsMnuNew = 0
+    ucsMnuOpen = 1
+    ucsMnuExit = 3
+    ucsMnuMinSave = 0
+    ucsMnuTestWriter = 1
+End Enum
 
 '=========================================================================
 ' Methods
@@ -149,7 +153,8 @@ Private m_lSeqNo                As Long
 Private Sub pvLoadBiff12File(oTree As TreeView, sFile As String)
     Dim lIdx            As Long
     Dim sName           As String
-    
+    Dim oNode           As ComctlLib.Node
+
     Set m_oZip = New cZipArchive
     If Not m_oZip.OpenArchive(sFile) Then
         MsgBox "Error opening archive. " & m_oZip.LastError, vbExclamation
@@ -161,15 +166,19 @@ Private Sub pvLoadBiff12File(oTree As TreeView, sFile As String)
         sFile = m_oZip.FileInfo(lIdx)(0)
         sName = Mid$(sFile, InStrRev(sFile, "\") + 1)
         If LenB(sName) <> 0 Then
-            With oTree.Nodes.Add(pvGetParentKey("Root\" & sFile), tvwChild, sFile, Mid$(sFile, InStrRev(sFile, "\") + 1), "doc")
-                If LCase$(Right$(sFile, 4)) = ".bin" Then
-                    oTree.Nodes.Add sFile, tvwChild, sFile & STR_DUMMY
-                Else
-                    .Tag = STR_DUMMY
-                End If
-            End With
+            Set oNode = oTree.Nodes.Add(pvGetParentKey("Root\" & sFile), tvwChild, sFile, Mid$(sFile, InStrRev(sFile, "\") + 1), "doc")
+            If LCase$(Right$(sFile, 4)) = ".bin" And InStr(sFile, "printerSettings") = 0 Then
+                oTree.Nodes.Add sFile, tvwChild, sFile & STR_DUMMY
+            Else
+                oNode.Tag = STR_DUMMY
+                '--- immediate load
+                pvDelayLoad m_oZip, oTree, oNode
+            End If
         End If
     Next
+    Set oTree.SelectedItem = oTree.Nodes(1)
+    TreeView1_NodeClick oTree.SelectedItem
+    Caption = oTree.Nodes(1).Text & " - Biff12 Explorer"
 QH:
 End Sub
 
@@ -182,11 +191,13 @@ Private Function pvLoadBinFile(oBin As cBiff12Part, oTree As TreeView, sRoot As 
     Dim sName           As String
     Dim oNode           As ComctlLib.Node
     Dim sPrevSel        As String
-    
+    Dim dblTimer        As Double
+
     On Error GoTo EH
     If Not oTree.SelectedItem Is Nothing Then
         sPrevSel = oTree.SelectedItem.Key
     End If
+    dblTimer = Timer
     Set cStack = New Collection
     cStack.Add sRoot
     eRecID = oBin.ReadVarDWord()
@@ -212,6 +223,13 @@ Private Function pvLoadBinFile(oBin As cBiff12Part, oTree As TreeView, sRoot As 
         If Left$(sName, 2) = "0x" Then
             Exit Do
         End If
+        If dblTimer + 5 < Timer Then
+            If MsgBox("Too many nodes!" & vbCrLf & vbCrLf & "Do you want to continue?", vbQuestion Or vbYesNo) = vbYes Then
+                dblTimer = 2 ^ 30
+            Else
+                Exit Do
+            End If
+        End If
         eRecID = oBin.ReadVarDWord()
         lRecSize = oBin.ReadVarDWord()
     Loop
@@ -233,7 +251,7 @@ End Function
 Private Function pvGetParentKey(sFile As String) As String
     Dim lPos            As Long
     Dim lPrevPos        As Long
-    
+
     lPos = InStr(1, sFile, "\")
     Do While lPos > 0
         If Not SearchCollection(TreeView1.Nodes, Left$(sFile, lPos - 1)) Then
@@ -248,11 +266,12 @@ Private Function pvGetParentKey(sFile As String) As String
 End Function
 
 Private Function pvDelayLoad(oZip As cZipArchive, oTree As TreeView, oNode As ComctlLib.Node) As Boolean
-    Dim oStream         As cMemoryStream
+    Dim oStream         As cBiff12Part
     Dim oBin            As cBiff12Part
     Dim baContents()    As Byte
     Dim sXml            As String
-    
+    Dim bIsBinPart      As Boolean
+
     On Error GoTo EH
     If oNode.Image <> "doc" Then
         Exit Function
@@ -262,16 +281,17 @@ Private Function pvDelayLoad(oZip As cZipArchive, oTree As TreeView, oNode As Co
             Exit Function
         End If
         TreeView1.Nodes.Remove oNode.Key & STR_DUMMY
+        bIsBinPart = True
     ElseIf oNode.Tag <> STR_DUMMY Then
         Exit Function
     End If
     Screen.MousePointer = vbHourglass
-    Set oStream = New cMemoryStream
+    Set oStream = New cBiff12Part
     If Not oZip.Extract(vbNullString, oNode.Key, oStream) Then
         MsgBox "Error extracting. " & oZip.LastError, vbExclamation
         GoTo QH
     End If
-    If LCase$(Right$(oNode.Key, 4)) = ".bin" Then
+    If bIsBinPart Then
         Set oBin = New cBiff12Part
         oBin.Contents = oStream.Contents
         pvDelayLoad = pvLoadBinFile(oBin, oTree, oNode.Key)
@@ -296,7 +316,7 @@ End Function
 Private Function pvEnumTags(oNode As ComctlLib.Node, Optional ByVal lIndent As Long = -4, Optional cOutput As Collection) As Collection
     Dim vElem           As Variant
     Dim oChild          As ComctlLib.Node
-    
+
     If cOutput Is Nothing Then
         Set cOutput = New Collection
     End If
@@ -323,34 +343,6 @@ Private Function pvEnumTags(oNode As ComctlLib.Node, Optional ByVal lIndent As L
     Set pvEnumTags = cOutput
 End Function
 
-Private Function CloneFont(pFont As IFont) As StdFont
-    If Not pFont Is Nothing Then
-        pFont.Clone CloneFont
-    Else
-        Set CloneFont = New StdFont
-    End If
-End Function
-
-Private Function FormatXmlIndent(vDomOrString As Variant, sResult As String) As Boolean
-    Dim oWriter         As Object ' MSXML2.MXXMLWriter
-
-    On Error GoTo QH
-    Set oWriter = CreateObject("MSXML2.MXXMLWriter")
-    oWriter.omitXMLDeclaration = True
-    oWriter.Indent = True
-    With CreateObject("MSXML2.SAXXMLReader")
-        Set .contentHandler = oWriter
-        '--- keep CDATA elements
-        .putProperty "http://xml.org/sax/properties/lexical-handler", oWriter
-        .parse vDomOrString
-    End With
-    sResult = oWriter.Output
-    '--- success
-    FormatXmlIndent = True
-    Exit Function
-QH:
-End Function
-
 Private Sub pvTestMinimalSave(sFile As String)
     Dim uFont           As UcsBiff12BrtFontType
     Dim uFill           As UcsBiff12BrtFillType
@@ -368,14 +360,14 @@ Private Sub pvTestMinimalSave(sFile As String)
     Dim oStrings        As cBiff12Part
 '    Dim lPos            As Long
 '    Dim lSize           As Long
-    
+
     Set oFile = New cBiff12Container
     oFile.GetRelID oFile.WorkbookPart, oFile.SheetPart(1)
-    
+
     ' STYLESHEET = BrtBeginStyleSheet [FMTS] [FONTS] [FILLS] [BORDERS] CELLSTYLEXFS CELLXFS STYLES DXFS TABLESTYLES [COLORPALETTE] FRTSTYLESHEET BrtEndStyleSheet
     With oFile.StylesPart
         .Output ucsBrtBeginStyleSheet
-        
+
             .OutputCount ucsBrtBeginFonts, 1
                 uFont.m_dyHeight = 220
                 uFont.m_bls = 400
@@ -385,16 +377,16 @@ Private Sub pvTestMinimalSave(sFile As String)
                 uFont.m_brtColor.m_index = 1
                 uFont.m_brtColor.m_bAlpha = 255
                 uFont.m_bFontScheme = 2
-                uFont.m_Name = "Calibri"
+                uFont.m_name = "Calibri"
                 .OutputBrtFont uFont
-                
+
 '                .WriteRecord ucsBrtACBegin, 6
 '                .WriteDWord &HE020001
 '                .WriteWord &H8000
 '                    .Output ucsBrtKnownFonts
 '                .Output ucsBrtACEnd
             .Output ucsBrtEndFonts
-            
+
             .OutputCount ucsBrtBeginFills, 2
                 uFill.m_fls = 0
                 With uFill.m_brtColorFore
@@ -427,7 +419,7 @@ Private Sub pvTestMinimalSave(sFile As String)
                 End With
                 .OutputBrtFill uFill
             .Output ucsBrtEndFills
-            
+
             .OutputCount ucsBrtBeginBorders, 1
                 uBorder.m_blxfTop.m_brtColor.m_xColorType = 1
                 uBorder.m_blxfBottom.m_brtColor.m_xColorType = 1
@@ -436,19 +428,19 @@ Private Sub pvTestMinimalSave(sFile As String)
                 uBorder.m_blxfDiag.m_brtColor.m_xColorType = 1
                 .OutputBrtBorder uBorder
             .Output ucsBrtEndBorders
-            
+
 '            .OutputCount ucsBrtBeginCellStyleXFs, 1
 '                uXf.m_ixfeParent = -1
 '                uXf.m_flags = &H1010
 '                .OutputBrtXf uXf
 '            .Output ucsBrtEndCellStyleXFs
-            
+
             .OutputCount ucsBrtBeginCellXFs, 1
                 uXf.m_ixfeParent = 0
                 uXf.m_flags = &H1010
                 .OutputBrtXf uXf
             .Output ucsBrtEndCellXFs
-            
+
 '            .OutputCount ucsBrtBeginStyles, 1
 '                uStyle.m_grbitObj1 = 1
 '                uStyle.m_iLevel = 255
@@ -458,7 +450,7 @@ Private Sub pvTestMinimalSave(sFile As String)
 '
 '            .OutputCount ucsBrtBeginDXFs, 0
 '            .Output ucsBrtEndDXFs
-            
+
 '            Const STR_TS_DEFLIST As String = "TableStyleMedium2"
 '            Const STR_TS_DEFPIVOT As String = "PivotStyleLight16"
 '            .WriteRecord ucsBrtBeginTableStyles, 4 + 4 + LenB(STR_TS_DEFLIST) + 4 + LenB(STR_TS_DEFPIVOT)
@@ -466,14 +458,14 @@ Private Sub pvTestMinimalSave(sFile As String)
 '            .WriteString STR_TS_DEFLIST
 '            .WriteString STR_TS_DEFPIVOT
 '            .Output ucsBrtEndTableStyles
-            
+
         .Output ucsBrtEndStyleSheet
     End With
-    
+
     ' WORKBOOK = BrtBeginBook [BrtFileVersion] [[BrtFileSharingIso] BrtFileSharing] [BrtWbProp] [ACABSPATH] [ACREVISIONPTR] [[BrtBookProtectionIso] BrtBookProtection] [BOOKVIEWS] BUNDLESHS [FNGROUP] [EXTERNALS] *BrtName [BrtCalcProp] [BrtOleSize] *(BrtUserBookView *FRT) [PIVOTCACHEIDS] [BrtWbFactoid] [SMARTTAGTYPES] [BrtWebOpt] *BrtFileRecover [WEBPUBITEMS] [CRERRS] FRTWORKBOOK BrtEndBook
     With oFile.WorkbookPart
         .Output ucsBrtBeginBook
-        
+
 '            lSize = 50
 '            lPos = .WriteRecord(ucsBrtFileVersion, lSize)
 '            .WriteGuid vbNullString
@@ -482,11 +474,11 @@ Private Sub pvTestMinimalSave(sFile As String)
 '            .WriteString "6"
 '            .WriteString "14420"
 '            Debug.Assert lPos + lSize = .Position
-            
+
 '            uWbProp.m_flags = &H10020
 '            uWbProp.m_dwThemeVersion = 153222
 '            .OutputBrtWbProp uWbProp
-            
+
 '            .Output ucsBrtBeginBookViews
 '                uBookView.m_dxWn = 30720
 '                uBookView.m_dyWn = 13704
@@ -494,7 +486,7 @@ Private Sub pvTestMinimalSave(sFile As String)
 '                uBookView.m_flags = &H78
 '                .OutputBrtBookView uBookView
 '            .Output ucsBrtEndBookViews
-            
+
             .Output ucsBrtBeginBundleShs
                 uBundle.m_hsState = 0
                 uBundle.m_iTabID = 1
@@ -502,10 +494,10 @@ Private Sub pvTestMinimalSave(sFile As String)
                 uBundle.m_strName = "Sheet1"
                 .OutputBrtBundleSh uBundle
             .Output ucsBrtEndBundleShs
-            
+
         .Output ucsBrtEndBook
     End With
-    
+
     ' SHAREDSTRINGS = BrtBeginSst *BrtSSTItem *FRT BrtEndSst
     Set oStrings = oFile.StringsPart
     oStrings.OutputCount2 ucsBrtBeginSst, 0, 0
@@ -513,23 +505,23 @@ Private Sub pvTestMinimalSave(sFile As String)
     ' WORKSHEET = BrtBeginSheet [BrtWsProp] [BrtWsDim] [WSVIEWS2] [WSFMTINFO] *COLINFOS CELLTABLE [BrtSheetCalcProp] [[BrtSheetProtectionIso] BrtSheetProtection] *([BrtRangeProtectionIso] BrtRangeProtection) [SCENMAN] [AUTOFILTER] [SORTSTATE] [DCON] [USERSHVIEWS] [MERGECELLS] [BrtPhoneticInfo] *CONDITIONALFORMATTING [DVALS] *([ACUID] BrtHLink) [BrtPrintOptions] [BrtMargins] [BrtPageSetup] [HEADERFOOTER] [RWBRK] [COLBRK] *BrtBigName [CELLWATCHES] [IGNOREECS] [SMARTTAGS] [BrtDrawing] [BrtLegacyDrawing] [BrtLegacyDrawingHF] [BrtBkHim] [OLEOBJECTS] [ACTIVEXCONTROLS] [WEBPUBITEMS] [LISTPARTS] FRTWORKSHEET [ACUID] BrtEndSheet
     With oFile.SheetPart
         .Output ucsBrtBeginSheet
-        
+
             uWsProp.m_flags = &H204C9
             uWsProp.m_brtcolorTab.m_index = 64
             uWsProp.m_rwSync = -1
             uWsProp.m_colSync = -1
             .OutputBrtWsProp uWsProp
-            
+
             uWsDim.m_colLast = 2
             .OutputBrtWsDim uWsDim
-            
+
             ' COLINFOS = BrtBeginColInfos 1*BrtColInfo BrtEndColInfos
             .Output ucsBrtBeginColInfos
                 uColInfo.m_colLast = 2
-                uColInfo.m_coldx = 1440
+                uColInfo.m_colDx = 1440
                 .OutputBrtColInfo uColInfo
             .Output ucsBrtEndColInfos
-            
+
             ' CELLTABLE = BrtBeginSheetData *1048576([ACCELLTABLE] BrtRowHdr *16384CELL *FRT) BrtEndSheetData
             .Output ucsBrtBeginSheetData
                 uRowHdr.m_rw = 0
@@ -538,23 +530,23 @@ Private Sub pvTestMinimalSave(sFile As String)
                 ReDim uRowHdr.m_rgBrtColspan(0 To 0) As UcsBiff12BrtColSpanType
                 uRowHdr.m_rgBrtColspan(0).m_colLast = 2
                 .OutputBrtRowHdr uRowHdr
-                
+
                 .OutputCellIsst 0, 0, oStrings.SstGetIndex("Test")
 '                .OutputCellBlank 1, 0
                 .OutputCellIsst 2, 0, oStrings.SstGetIndex("Проба")
             .Output ucsBrtEndSheetData
-            
+
 '            .OutputCount ucsBrtBeginMergeCells, 0 ' MERGECELLS
 '            .Output ucsBrtEndMergeCells
-            
+
         .Output ucsBrtEndSheet
     End With
-    
+
     oStrings.Output ucsBrtEndSst
-    
+
 '    oFile.AppPropsPart.XmlDocument.Load TEMP_FOLDER & "\Book3.xlsb\docProps\app.xml"
 '    oFile.ThemePart.XmlDocument.Load TEMP_FOLDER & "\Book3.xlsb\xl\theme\theme1.xml"
-    
+
     oFile.SaveToFile sFile
 End Sub
 
@@ -563,9 +555,9 @@ Private Function pvTestBiff12Writer(sFile As String) As Boolean
     Dim oStyle()        As cBiff12CellStyle
     Dim lIdx            As Long
     Dim lRow            As Long
-    Dim dblTimer        As Double
+    Dim dblTimer        As Single
     Dim baBuffer()      As Byte
-    
+
     On Error GoTo EH
     dblTimer = Timer
     ReDim oStyle(0 To 5) As cBiff12CellStyle
@@ -585,10 +577,14 @@ Private Function pvTestBiff12Writer(sFile As String) As Boolean
     oStyle(4).BackColor = CLR_GREY
     oStyle(4).WrapText = True
     With New cBiff12Writer
+        '--- note: Excel's Biff12 clipboard reader cannot handle shared-strings table
         .Init 5 ' , UseSST:=True
         For lRow = 0 To 100
             If lRow = 0 Then
                 .MergeCells 0, 2, 3
+                If (FileAttr(TEMP_FOLDER & "\image1.png") And vbArchive) <> 0 Then
+                    .AddImage 4, ReadBinaryFile(TEMP_FOLDER & "\image1.png"), 883920, 871745
+                End If
             End If
             For lIdx = 0 To .ColCount - 1
                 With oStyle(lIdx)
@@ -606,7 +602,14 @@ Private Function pvTestBiff12Writer(sFile As String) As Boolean
         .Flush
         .SaveToBlob baBuffer
         WriteBinaryFile sFile, baBuffer
+        
+        If OpenClipboard(Me.hWnd) = 0 Then
+            Err.Raise vbObjectError, , "Cannot open clipboard"
+        End If
+        Call EmptyClipboard
+        SetTextData "Biff12 Explorer"
         SetBinaryData AddFormat("Biff12"), baBuffer
+        Call CloseClipboard
     End With
     MsgBox "Save complete in " & Format$(Timer - dblTimer, "0.000"), vbExclamation
     pvTestBiff12Writer = True
@@ -617,7 +620,7 @@ End Function
 
 Private Function AddFormat(ByVal sName As String) As Long
     Dim wFormat         As Long
-    
+
     wFormat = RegisterClipboardFormat(sName & Chr$(0))
     If (wFormat > &HC000&) Then
         AddFormat = wFormat
@@ -628,11 +631,7 @@ Private Function SetBinaryData(ByVal lFormatId As Long, bData() As Byte) As Bool
     Dim lSize           As Long
     Dim hMem            As Long
     Dim lPtr            As Long
-    
-    If OpenClipboard(Me.hWnd) = 0 Then
-        GoTo QH
-    End If
-    Call EmptyClipboard
+
     lSize = UBound(bData) - LBound(bData) + 1
     hMem = GlobalAlloc(GMEM_DDESHARE Or GMEM_MOVEABLE, lSize)
     If hMem = 0 Then
@@ -649,49 +648,55 @@ Private Function SetBinaryData(ByVal lFormatId As Long, bData() As Byte) As Bool
     End If
     SetBinaryData = True
 QH:
-    Call CloseClipboard
+End Function
+
+Public Function SetTextData(sText As String) As Boolean
+    Dim baData() As Byte
+    
+    If LenB(sText) > 0 Then
+        baData = StrConv(sText & vbNullChar, vbFromUnicode)
+        SetTextData = SetBinaryData(vbCFText, baData)
+    End If
 End Function
 
 '=========================================================================
 ' Control events
 '=========================================================================
 
-Private Sub Command1_Click()
-    Dim sFile           As String
-    Dim sInitDir        As String
-    
-    On Error GoTo EH
-    sInitDir = GetSetting(App.Title, MODULE_NAME, "InitialDir", App.Path)
-    If ShowOpenSaveDialog(sFile, STR_OPEN_FILTER, sInitDir, hWnd, STR_OPEN_TITLE, ucsOsdOpen) Then
-        If InStrRev(sFile, "\") > 0 Then
-            sInitDir = Left$(sFile, InStrRev(sFile, "\") - 1)
-            SaveSetting App.Title, MODULE_NAME, "InitialDir", sInitDir
-        End If
-        Screen.MousePointer = vbHourglass
-        pvLoadBiff12File TreeView1, sFile
-        Screen.MousePointer = vbDefault
-    End If
-    Exit Sub
-EH:
-    MsgBox Error, vbCritical
-    Screen.MousePointer = vbDefault
-End Sub
-
-Private Sub Command2_Click()
-    pvTestMinimalSave TEMP_FOLDER & "\output.xlsb"
-End Sub
-
-Private Sub Command3_Click()
-    If pvTestBiff12Writer(TEMP_FOLDER & "\output.xlsb") Then
+Private Sub mnuDebug_Click(Index As Integer)
+    Select Case Index
+    Case ucsMnuMinSave
+        pvTestMinimalSave TEMP_FOLDER & "\output.xlsb"
+    Case ucsMnuTestWriter
+        If pvTestBiff12Writer(TEMP_FOLDER & "\output.xlsb") Then
         pvLoadBiff12File TreeView1, TEMP_FOLDER & "\output.xlsb"
     End If
+    End Select
 End Sub
 
-Private Sub Form_Resize()
-    On Error Resume Next
-    TreeView1.Move 84, TreeView1.Top, TreeView1.Width, ScaleHeight - TreeView1.Top - 84
-    RichTextBox1.Move TreeView1.Left + TreeView1.Width + 84, TreeView1.Top, ScaleWidth - RichTextBox1.Left - 84, TreeView1.Height
-    RichTextBox1.Width = ScaleWidth - RichTextBox1.Left - 84
+Private Sub mnuFile_Click(Index As Integer)
+    Dim sFile           As String
+    Dim sInitDir        As String
+
+    Select Case Index
+    Case ucsMnuNew
+        With New Form1
+            .Show
+        End With
+    Case ucsMnuOpen
+        sInitDir = GetSetting(App.Title, MODULE_NAME, "InitialDir", App.Path)
+        If ShowOpenSaveDialog(sFile, STR_OPEN_FILTER, sInitDir, hWnd, STR_OPEN_TITLE, ucsOsdOpen) Then
+            If InStrRev(sFile, "\") > 0 Then
+                sInitDir = Left$(sFile, InStrRev(sFile, "\") - 1)
+                SaveSetting App.Title, MODULE_NAME, "InitialDir", sInitDir
+            End If
+            Screen.MousePointer = vbHourglass
+            pvLoadBiff12File TreeView1, sFile
+            Screen.MousePointer = vbDefault
+        End If
+    Case ucsMnuExit
+        Unload Me
+    End Select
 End Sub
 
 Private Sub TreeView1_Collapse(ByVal Node As ComctlLib.Node)
@@ -711,7 +716,18 @@ End Sub
 
 Private Sub TreeView1_NodeClick(ByVal Node As ComctlLib.Node)
     pvDelayLoad m_oZip, TreeView1, Node
-    RichTextBox1.Text = ConcatCollection(pvEnumTags(Node))
-    Set RichTextBox1.Font = CloneFont(RichTextBox1.Font)
+    RichTextBox1.TextRTF = ConcatCollection(pvEnumTags(Node))
+End Sub
+
+Private Sub Form_Resize()
+    On Error Resume Next
+    TreeView1.Move 84, TreeView1.Top, TreeView1.Width, ScaleHeight - TreeView1.Top - 84
+    RichTextBox1.Move TreeView1.Left + TreeView1.Width + 84, TreeView1.Top, ScaleWidth - RichTextBox1.Left - 84, TreeView1.Height
+    RichTextBox1.Width = ScaleWidth - RichTextBox1.Left - 84
+End Sub
+
+Private Sub Form_Unload(Cancel As Integer)
+    '--- clear peek buffer safe array
+    RollingHash 0, 0
 End Sub
 

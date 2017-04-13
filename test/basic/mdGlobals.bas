@@ -18,8 +18,6 @@ Private Const VT_I8                         As Long = &H14
 '--- for FormatMessage
 Private Const FORMAT_MESSAGE_FROM_SYSTEM    As Long = &H1000
 Private Const FORMAT_MESSAGE_IGNORE_INSERTS As Long = &H200
-'--- for WideCharToMultiByte
-Private Const CP_UTF8                       As Long = 65001
 
 Private Declare Function ApiEmptyByteArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbByte, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As Byte()
 Private Declare Function ApiDeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
@@ -30,50 +28,10 @@ Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As 
 Private Declare Function GetFileAttributes Lib "kernel32" Alias "GetFileAttributesA" (ByVal lpFileName As String) As Long
 Private Declare Function ApiCreateDirectory Lib "kernel32" Alias "CreateDirectoryA" (ByVal lpPathName As String, ByVal lpSecurityAttributes As Long) As Long
 Private Declare Function FormatMessage Lib "kernel32" Alias "FormatMessageA" (ByVal dwFlags As Long, lpSource As Long, ByVal dwMessageId As Long, ByVal dwLanguageId As Long, ByVal lpBuffer As String, ByVal nSize As Long, Args As Any) As Long
-Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
-Private Declare Function MultiByteToWideChar Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long) As Long
-
-'=========================================================================
-' Constants and member variables
-'=========================================================================
-
-Private m_vLastError                As Variant
-Private m_uPeekArray                As UcsSafeArraySingleDimension
-Private m_aPeekBuffer()             As Integer
-
-Private Type UcsSafeArraySingleDimension
-    cDims       As Integer      '--- usually 1
-    fFeatures   As Integer      '--- leave 0
-    cbElements  As Long         '--- bytes per element (2-int, 4-long)
-    cLocks      As Long         '--- leave 0
-    pvData      As Long         '--- ptr to data
-    cElements   As Long         '--- UBound + 1
-    lLbound     As Long         '--- LBound
-End Type
 
 '=========================================================================
 ' Functions
 '=========================================================================
-
-Public Function PushError(Optional vLocalErr As Variant) As Variant
-    vLocalErr = Array(Err.Number, Err.Source, Err.Description, Erl)
-    m_vLastError = vLocalErr
-    PushError = vLocalErr
-End Function
-
-Public Function PopRaiseError(sFunction As String, sModule As String, Optional vLocalErr As Variant)
-    If Not IsMissing(vLocalErr) Then
-        m_vLastError = vLocalErr
-    End If
-    Err.Raise m_vLastError(0), sModule & "." & sFunction & vbCrLf & m_vLastError(1), m_vLastError(2)
-End Function
-
-Public Function PopPrintError(sFunction As String, sModule As String, Optional vLocalErr As Variant)
-    If Not IsMissing(vLocalErr) Then
-        m_vLastError = vLocalErr
-    End If
-    Debug.Print "Error " & m_vLastError(0), sModule & "." & sFunction & vbCrLf & m_vLastError(1), m_vLastError(2)
-End Function
 
 Private Sub pvClose(nFile As Integer)
     On Error GoTo EH
@@ -195,7 +153,6 @@ Public Function GetSystemMessage(ByVal lLastDllError As Long) As String
     GetSystemMessage = Left$(GetSystemMessage, ret)
 End Function
 
-
 Public Function DeleteFile(sFileName As String) As Boolean
     Call ApiDeleteFile(sFileName)
 End Function
@@ -271,10 +228,6 @@ Public Function UnsignedAdd(ByVal Start As Long, ByVal Incr As Long) As Long
     UnsignedAdd = ((Start Xor &H80000000) + Incr) Xor &H80000000
 End Function
 
-Public Function Peek(ByVal lPtr As Long) As Long
-    Call CopyMemory(Peek, ByVal lPtr, 4)
-End Function
-
 Public Function ToArray(oCol As Collection) As Variant
     Const FUNC_NAME     As String = "ToArray"
     Dim vRetVal         As Variant
@@ -314,81 +267,24 @@ Public Function GetHiDWord(llValue As Variant) As Long
     Call CopyMemory(GetHiDWord, ByVal VarPtr(llValue) + 12, 4)
 End Function
 
-Public Function RollingHash(ByVal lPtr As Long, ByVal lSize As Long) As Long
-    Dim lIdx            As Long
-    
-    If lPtr = 0 Then
-        Call CopyMemory(ByVal ArrPtr(m_aPeekBuffer), 0&, 4)
-        m_uPeekArray.cDims = 0
-        Exit Function
-    ElseIf m_uPeekArray.cDims = 0 Then
-        With m_uPeekArray
-            .cDims = 1
-            .cbElements = 2
-        End With
-        Call CopyMemory(ByVal ArrPtr(m_aPeekBuffer), VarPtr(m_uPeekArray), 4)
-    End If
-    m_uPeekArray.pvData = lPtr
-    m_uPeekArray.cElements = lSize
-    For lIdx = 0 To lSize - 1
-        RollingHash = (RollingHash * 263 + m_aPeekBuffer(lIdx)) And &H3FFFFF
-    Next
-End Function
+Public Function FormatXmlIndent(vDomOrString As Variant, sResult As String) As Boolean
+    Dim oWriter         As Object ' MSXML2.MXXMLWriter
 
-Public Function SearchCollection(ByVal pCol As Object, Index As Variant, Optional RetVal As Variant) As Boolean
     On Error GoTo QH
-    AssignVariant RetVal, pCol.Item(Index)
-    SearchCollection = True
+    Set oWriter = CreateObject("MSXML2.MXXMLWriter")
+    oWriter.omitXMLDeclaration = True
+    oWriter.Indent = True
+    With CreateObject("MSXML2.SAXXMLReader")
+        Set .contentHandler = oWriter
+        '--- keep CDATA elements
+        .putProperty "http://xml.org/sax/properties/lexical-handler", oWriter
+        .parse vDomOrString
+    End With
+    sResult = oWriter.Output
+    '--- success
+    FormatXmlIndent = True
+    Exit Function
 QH:
 End Function
 
-Public Sub AssignVariant(vDest As Variant, vSrc As Variant)
-    '--- note: VariantCopy ne raboti za VT_BYREF wyw vDest
-'    Call VariantCopy(vDest, vSrc)
-    If IsObject(vSrc) Then
-        Set vDest = vSrc
-    Else
-        vDest = vSrc
-    End If
-End Sub
 
-Public Function ToUtf8(sText As String) As String
-    Dim lSize           As Long
-    
-    lSize = WideCharToMultiByte(CP_UTF8, 0, StrPtr(sText), Len(sText), ByVal 0, 0, 0, 0)
-    If lSize > 0 Then
-        ToUtf8 = String(lSize, 0)
-        Call WideCharToMultiByte(CP_UTF8, 0, StrPtr(sText), Len(sText), ByVal ToUtf8, lSize, 0, 0)
-    End If
-End Function
-
-Public Function ToUtf8Array(sText As String) As Byte()
-    Dim baRetVal()      As Byte
-    Dim lSize           As Long
-    
-    lSize = WideCharToMultiByte(CP_UTF8, 0, StrPtr(sText), Len(sText), ByVal 0, 0, 0, 0)
-    If lSize > 0 Then
-        ReDim baRetVal(0 To lSize - 1) As Byte
-        Call WideCharToMultiByte(CP_UTF8, 0, StrPtr(sText), Len(sText), baRetVal(0), lSize, 0, 0)
-    Else
-        baRetVal = ApiEmptyByteArray
-    End If
-    ToUtf8Array = baRetVal
-End Function
-
-Public Function FromUtf8(sText As String) As String
-    Dim lSize           As Long
-    
-    FromUtf8 = String$(4 * Len(sText), 0)
-    lSize = MultiByteToWideChar(CP_UTF8, 0, ByVal sText, Len(sText), StrPtr(FromUtf8), Len(FromUtf8))
-    FromUtf8 = Left$(FromUtf8, lSize)
-End Function
-
-
-Public Function FromUtf8Array(baText() As Byte) As String
-    Dim lSize           As Long
-    
-    FromUtf8Array = String$(2 * UBound(baText), 0)
-    lSize = MultiByteToWideChar(CP_UTF8, 0, baText(0), UBound(baText) + 1, StrPtr(FromUtf8Array), Len(FromUtf8Array))
-    FromUtf8Array = Left$(FromUtf8Array, lSize)
-End Function

@@ -34,7 +34,7 @@ Private Const STR_BRT_LOOKUP2 As String = "BeginSlicerCacheID|430|EndSlicerCache
         "EndPivotTableRefs|804|PivotTableRef|805|SlicerCacheBookPivotTables|806|BeginSxvcells|807|EndSxvcells|808|BeginSxRow|809|EndSxRow|80A|PcdCalcMem15|80C|Qsi15|813|BeginWebExtensions|814|EndWebExtensions|815|WebExtension|816|AbsPath15|817|BeginPivotTableUISettings|818|EndPivotTableUISettings|819|TableSlicerCacheIDs|81B|TableSlicerCacheID|81C|BeginTableSlicerCache|81D|EndTableSlicerCache|81E|SxFilter15|81F|BeginTimelineCachePivotCacheIDs|820|EndTimelineCachePivotCacheIDs|821|TimelineCachePivotCacheID|822|BeginTimelineCacheIDs|823|EndTimelineCacheIDs|824|BeginTimelineCacheID|825|EndTimelineCacheID|826|BeginTimelinesEx|827|EndTimelinesEx|828|BeginTimelineEx|829|EndTimelineEx|82A|WorkBookPr15|82B|PCDH15|82C|BeginTimelineStyle|82D|EndTimelineStyle|82E|" & _
         "TimelineStyleElement|82F|BeginTimelineStylesheetExt15|830|EndTimelineStylesheetExt15|831|BeginTimelineStyles|832|EndTimelineStyles|833|BeginTimelineStyleElements|834|EndTimelineStyleElements|835|Dxf15|836|BeginDxfs15|837|EndDxfs15|838|SlicerCacheHideItemsWithNoData|839|BeginItemUniqueNames|83A|EndItemUniqueNames|83B|ItemUniqueName|83C|BeginExtConn15|83D|EndExtConn15|83E|BeginOledbPr15|83F|EndOledbPr15|840|BeginDataFeedPr15|841|EndDataFeedPr15|842|TextPr15|843|RangePr15|844|DbCommand15|845|BeginDbTables15|846|EndDbTables15|847|DbTable15|848|BeginDataModel|849|EndDataModel|84A|BeginModelTables|84B|EndModelTables|84C|ModelTable|84D|BeginModelRelationships|84E|EndModelRelationships|84F|ModelRelationship|850|BeginECTxtWiz15|851|" & _
         "EndECTxtWiz15|852|BeginECTWFldInfoLst15|853|EndECTWFldInfoLst15|854|BeginECTWFldInfo15|855|FieldListActiveItem|856|PivotCacheIdVersion|857|SXDI15|858"
-        
+
 
 Private m_aBrtName()        As String
 Private m_bInitBrtName      As Boolean
@@ -46,7 +46,7 @@ Private m_bInitBrtName      As Boolean
 Public Function GetBrtName(ByVal eRecID As UcsBiff12RecortTypeEnum) As String
     Dim vSplit          As Variant
     Dim lIdx            As Long
-    
+
     If Not m_bInitBrtName Then
         m_bInitBrtName = True
         ReDim m_aBrtName(0 To &HFFF) As String
@@ -71,7 +71,7 @@ Public Function GetBrtData(ByVal eRecID As UcsBiff12RecortTypeEnum, ByVal lRecSi
     Dim lIdx            As Long
     Dim lCount          As Long
     Dim sText           As String
-    
+
     Set cRetVal = New Collection
     lPtr = oBin.Ptr(oBin.Position)
     Select Case eRecID
@@ -415,7 +415,7 @@ End Function
 Private Sub pvDumpRichString(sPrefix As String, oBin As cBiff12Part, cRetVal As Collection)
     Dim lFlags          As Long
     Dim lIdx            As Long
-    
+
     lFlags = oBin.ReadByte()
     cRetVal.Add sPrefix & "flags=" & pvFormatFlags(lFlags, "fRichStr|fExtStr")
     cRetVal.Add sPrefix & "str=" & oBin.ReadString()
@@ -445,7 +445,7 @@ End Sub
 
 Private Sub pvDumpCell(sPrefix As String, oBin As cBiff12Part, cRetVal As Collection)
     Dim lFlags          As Long
-    
+
     cRetVal.Add sPrefix & "column=" & oBin.ReadDWord()
     lFlags = oBin.ReadDWord()
     cRetVal.Add sPrefix & "iStyleRef=" & (lFlags And &HFFFFFF)
@@ -467,7 +467,7 @@ End Sub
 
 Private Sub pvDumpColor(sPrefix As String, oBin As cBiff12Part, cRetVal As Collection)
     Dim lFlags          As Long
-    
+
     lFlags = oBin.ReadByte()
     cRetVal.Add sPrefix & "flags=" & pvFormatFlags(lFlags, "fValidRGB")
     cRetVal.Add sPrefix & "xColorType=" & (lFlags \ 2)
@@ -482,7 +482,7 @@ End Sub
 Private Function pvFormatFlags(ByVal lFlags As Long, sFlags As String) As String
     Dim vSplit          As Variant
     Dim lIdx            As Long
-    
+
     vSplit = Split(sFlags, "|")
     For lIdx = 0 To UBound(vSplit)
         If LenB(vSplit(lIdx)) <> 0 Then
@@ -507,7 +507,7 @@ End Function
 '     return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
 Private Function PopCount(ByVal lValue As Long) As Long
     Dim llTemp          As Variant
-    
+
     llTemp = ToLngLng(lValue, 0)
     llTemp = llTemp - (llTemp \ 2 And &H55555555)
     llTemp = (llTemp And &H33333333) + (llTemp \ 4 And &H33333333)
