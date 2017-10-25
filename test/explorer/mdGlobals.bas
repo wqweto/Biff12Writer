@@ -245,8 +245,7 @@ Public Function ToArray(oCol As Collection) As Variant
     End If
     Exit Function
 EH:
-    PushError
-    PopRaiseError FUNC_NAME, MODULE_NAME
+    PopRaiseError FUNC_NAME, MODULE_NAME, PushError
 End Function
 
 Public Function CLngLng(vValue As Variant) As Variant
@@ -286,5 +285,3 @@ Public Function FormatXmlIndent(vDomOrString As Variant, sResult As String) As B
     Exit Function
 QH:
 End Function
-
-

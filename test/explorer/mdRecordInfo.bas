@@ -213,7 +213,7 @@ Public Function GetBrtData(ByVal eRecID As UcsBiff12RecortTypeEnum, ByVal lRecSi
         cRetVal.Add "ixfe=" & oBin.ReadDWord()
         cRetVal.Add "miyRw=" & oBin.ReadWord()
         lFlags = oBin.Read3Bytes()
-        cRetVal.Add "flags=" & pvFormatFlags(lFlags, "fExtraAsc|fExtraDsc|||||||||fCollapsed|fDyZero|fUnsynced|fGhostDirty||fPhShow")
+        cRetVal.Add "flags=" & pvFormatFlags(lFlags, "fExtraAsc|fExtraDsc||||||||||fCollapsed|fDyZero|fUnsynced|fGhostDirty||fPhShow")
         cRetVal.Add "iOutLevel=" & (lFlags \ &H100 And 7)
         lIdx = oBin.ReadDWord()
         cRetVal.Add "ccolspan=" & lIdx

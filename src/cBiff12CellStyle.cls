@@ -20,23 +20,7 @@ Attribute VB_Exposed = False
 '=========================================================================
 Option Explicit
 DefObj A-Z
-'Private Const MODULE_NAME As String = "cBiff12CellStyle"
-
-#Const ImplUseShared = BIFF12_USESHARED
-
-'=========================================================================
-' Public enums
-'=========================================================================
-
-#If ImplUseShared = 0 Then
-
-Public Enum UcsHorAlignmentEnum
-    ucsHalLeft = 0
-    ucsHalRight = 1
-    ucsHalCenter = 2
-End Enum
-
-#End If
+Private Const STR_MODULE_NAME As String = "cBiff12CellStyle"
 
 '=========================================================================
 ' API
@@ -50,14 +34,19 @@ Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination
 ' Constants and member variables
 '=========================================================================
 
-Private m_lIndex                    As Long
-Private m_sFontName                 As String
-Private m_sFormat                   As String
-Private m_uState                    As UcsCellStyleType
-Private m_lFmtIndex                 As Long
-Private m_lFontIndex                As Long
-Private m_lFillIndex                As Long
-Private m_lBorderIndex              As Long
+Private m_lIndex                As Long
+Private m_sFontName             As String
+Private m_sFormat               As String
+Private m_uState                As UcsCellStyleType
+Private m_lFmtIndex             As Long
+Private m_lFontIndex            As Long
+Private m_lFillIndex            As Long
+Private m_lBorderIndex          As Long
+'--- debug
+Private m_sInstanceName         As String
+#If DebugMode Then
+    Private m_sDebugID          As String
+#End If
 
 Private Type UcsCellStyleType
     FontName            As String * 32
@@ -67,14 +56,32 @@ Private Type UcsCellStyleType
     ForeColor           As Long
     BackColor           As Long
     HorAlign            As UcsHorAlignmentEnum
+    VertAlign           As UcsVertAlignmentEnum
     BorderLeftColor     As Long
     BorderTopColor      As Long
     BorderRightColor    As Long
     BorderBottomColor   As Long
     WrapText            As Boolean
+    ShrinkText          As Boolean
     Indent              As Long
     Format              As String * 64
 End Type
+
+'=========================================================================
+' Error management
+'=========================================================================
+
+Friend Property Get frInstanceName() As String
+    frInstanceName = m_sInstanceName
+End Property
+
+'Private Property Get MODULE_NAME() As String
+'    #If DebugMode Then
+'        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName, m_sDebugID)
+'    #Else
+'        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName)
+'    #End If
+'End Property
 
 '=========================================================================
 ' Properties
@@ -158,6 +165,17 @@ Property Let HorAlign(ByVal eValue As UcsHorAlignmentEnum)
     End If
 End Property
 
+Property Get VertAlign() As UcsVertAlignmentEnum
+    VertAlign = m_uState.VertAlign
+End Property
+
+Property Let VertAlign(ByVal eValue As UcsVertAlignmentEnum)
+    If m_uState.VertAlign <> eValue Then
+        m_uState.VertAlign = eValue
+        m_lIndex = -1
+    End If
+End Property
+
 Property Get BorderLeftColor() As Long
     BorderLeftColor = m_uState.BorderLeftColor
 End Property
@@ -209,6 +227,17 @@ End Property
 Property Let WrapText(ByVal bValue As Boolean)
     If m_uState.WrapText <> bValue Then
         m_uState.WrapText = bValue
+        m_lIndex = -1
+    End If
+End Property
+
+Property Get ShrinkText() As Boolean
+    ShrinkText = m_uState.ShrinkText
+End Property
+
+Property Let ShrinkText(ByVal bValue As Boolean)
+    If m_uState.ShrinkText <> bValue Then
+        m_uState.ShrinkText = bValue
         m_lIndex = -1
     End If
 End Property
@@ -293,14 +322,18 @@ End Property
 '=========================================================================
 
 Private Sub Class_Initialize()
+    #If DebugMode Then
+        DebugInstanceInit STR_MODULE_NAME, m_sDebugID, Me
+    #End If
     '--- prevent fixed-length strings filled with Chr(0)
     m_uState.FontName = vbNullString
     m_uState.Format = vbNullString
-    With New StdFont
+    With SystemIconFont
         FontName = .Name
         FontSize = .Size
     End With
     ForeColor = vbBlack
+    VertAlign = ucsValMiddle
     '--- use -1 for transparent
     BackColor = -1
     BorderLeftColor = -1
@@ -308,3 +341,10 @@ Private Sub Class_Initialize()
     BorderRightColor = -1
     BorderBottomColor = -1
 End Sub
+
+#If DebugMode Then
+    Private Sub Class_Terminate()
+        DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
+    End Sub
+#End If
+

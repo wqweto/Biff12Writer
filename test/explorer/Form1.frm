@@ -48,11 +48,11 @@ Begin VB.Form Form1
       BeginProperty Images {0713E8C2-850A-101B-AFC0-4210102A8DA7} 
          NumListImages   =   2
          BeginProperty ListImage1 {0713E8C3-850A-101B-AFC0-4210102A8DA7} 
-            Picture         =   "Form1.frx":0273
+            Picture         =   "Form1.frx":028D
             Key             =   "doc"
          EndProperty
          BeginProperty ListImage2 {0713E8C3-850A-101B-AFC0-4210102A8DA7} 
-            Picture         =   "Form1.frx":07C5
+            Picture         =   "Form1.frx":07DF
             Key             =   "folder"
          EndProperty
       EndProperty
@@ -132,7 +132,7 @@ Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpvDest As 
 
 Private Const TEMP_FOLDER           As String = "C:\TEMP" ' "D:\TEMP\Biff12"
 Private Const STR_DUMMY             As String = "$dummy"
-Private Const STR_OPEN_FILTER       As String = "Excel book (*.xlsb;*.xlsx)|*.xlsb;*.xlsx|All files (*.*)|*.*"
+Private Const STR_OPEN_FILTER       As String = "Excel Binary Worksheet (*.xlsb;*.xlsx)|*.xlsb;*.xlsx|All files (*.*)|*.*"
 Private Const STR_OPEN_TITLE        As String = "Load BIFF12 file"
 
 Private m_oZip                  As cZipArchive
@@ -583,7 +583,7 @@ Private Function pvTestBiff12Writer(sFile As String) As Boolean
             If lRow = 0 Then
                 .MergeCells 0, 2, 3
                 If (FileAttr(TEMP_FOLDER & "\image1.png") And vbArchive) <> 0 Then
-                    .AddImage 4, ReadBinaryFile(TEMP_FOLDER & "\image1.png"), 883920, 871745
+                    .AddImage 4, ReadBinaryFile(TEMP_FOLDER & "\image1.png"), 0, 0, 883920, 871745
                 End If
             End If
             For lIdx = 0 To .ColCount - 1

@@ -11,18 +11,13 @@ DefObj A-Z
 'Private Const MODULE_NAME As String = "mdBiff12Shared"
 
 #Const ImplUseShared = BIFF12_USESHARED
+#Const ImplPublicClasses = BIFF12_PUBLICCLASSES
 
-#If ImplUseShared Then
+#If ImplPublicClasses = 0 Then
 
 '=========================================================================
 ' Public types
 '=========================================================================
-
-Public Enum UcsHorAlignmentEnum
-    ucsHalLeft = 0
-    ucsHalRight = 1
-    ucsHalCenter = 2
-End Enum
 
 Public Type UcsBiff12BrtColorType
     m_xColorType        As Byte
@@ -178,6 +173,22 @@ Public Type UcsBiff12BrtFileVersionType
     m_stRupBuild        As String
 End Type
 
+#End If ' ImplPrivateClasses
+
+#If ImplUseShared = 0 Then
+
+Public Enum UcsHorAlignmentEnum
+    ucsHalLeft = 0
+    ucsHalRight = 1
+    ucsHalCenter = 2
+End Enum
+
+Public Enum UcsVertAlignmentEnum
+    ucsValTop = 0
+    ucsValMiddle = 1
+    ucsValBottom = 2
+End Enum
+
 '=========================================================================
 ' API
 '=========================================================================
@@ -225,6 +236,13 @@ Public Function PopRaiseError(sFunction As String, sModule As String, Optional v
     End If
     Err.Raise m_vLastError(0), sModule & "." & sFunction & vbCrLf & m_vLastError(1), m_vLastError(2)
 End Function
+
+Public Sub PopPrintError(sFunction As String, sModule As String, vLocalErr As Variant)
+    If Not IsMissing(vLocalErr) Then
+        m_vLastError = vLocalErr
+    End If
+    Debug.Print sModule & "." & sFunction & ": " & m_vLastError(2)
+End Sub
 
 Public Function ToUtf8Array(sText As String) As Byte()
     Dim baRetVal()      As Byte
@@ -280,6 +298,12 @@ Public Function SearchCollection(ByVal pCol As Object, Index As Variant, Optiona
 QH:
 End Function
 
+Public Function RemoveCollection(pCol As Collection, Index As Variant)
+    On Error GoTo QH
+    pCol.Remove Index
+QH:
+End Function
+
 Public Sub AssignVariant(vDest As Variant, vSrc As Variant)
     If IsObject(vSrc) Then
         Set vDest = vSrc
@@ -287,5 +311,23 @@ Public Sub AssignVariant(vDest As Variant, vSrc As Variant)
         vDest = vSrc
     End If
 End Sub
+
+Public Function GetModuleInstance(sModuleName As String, sInstanceName As String, Optional DebugID As String) As String
+    If LenB(sInstanceName) <> 0 And LenB(DebugID) <> 0 Then
+        GetModuleInstance = sModuleName & "(" & sInstanceName & ", " & DebugID & ")"
+    ElseIf LenB(sInstanceName) <> 0 Or LenB(DebugID) <> 0 Then
+        GetModuleInstance = sModuleName & "(" & Zn(sInstanceName, DebugID) & ")"
+    Else
+        GetModuleInstance = sModuleName
+    End If
+End Function
+
+Public Function Zn(sText As String, Optional IfEmptyString As Variant = Null) As Variant
+    Zn = IIf(LenB(sText) = 0, IfEmptyString, sText)
+End Function
+
+Public Function SystemIconFont() As StdFont
+    Set SystemIconFont = New StdFont
+End Function
 
 #End If ' ImplUseShared

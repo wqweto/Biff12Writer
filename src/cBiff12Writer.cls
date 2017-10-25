@@ -20,7 +20,7 @@ Attribute VB_Exposed = False
 '=========================================================================
 Option Explicit
 DefObj A-Z
-Private Const MODULE_NAME As String = "cBiff12Writer"
+Private Const STR_MODULE_NAME As String = "cBiff12Writer"
 
 #Const ImplUseShared = BIFF12_USESHARED
 
@@ -28,33 +28,50 @@ Private Const MODULE_NAME As String = "cBiff12Writer"
 ' API
 '=========================================================================
 
-Private Declare Function ApiEmptyLongArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbLong, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As Long()
+'Private Declare Function ApiEmptyLongArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbLong, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As Long()
 
 '=========================================================================
 ' Constants and member variables
 '=========================================================================
 
-Private m_lColCount                 As Long
-Private m_lRowCount                 As Long
-Private m_lCompressionLevel         As Long
-Private m_oContainer                As cBiff12Container
-Private m_oStringsPart              As cBiff12Part
-Private m_oSheetPart                As cBiff12Part
-Private m_aColWidth()               As Long
-Private m_lWsDimPosition            As Long
-Private m_uRowHdr                   As UcsBiff12BrtRowHdrType
-Private m_aMergeCells()             As UcsBiff12UncheckedRfXType
-Private m_lMergeCellsCount          As Long
-Private m_oStylesCollection         As cBiff12Part
-Private m_bFlushed                  As Boolean
+Private m_lColCount             As Long
+Private m_lRowCount             As Long
+Private m_lCompressionLevel     As Long
+Private m_oContainer            As cBiff12Container
+Private m_oStringsPart          As cBiff12Part
+Private m_oSheetPart            As cBiff12Part
+Private m_aColWidth()           As Long
+Private m_lWsDimPosition        As Long
+Private m_uRowHdr               As UcsBiff12BrtRowHdrType
+Private m_aMergeCells()         As UcsBiff12UncheckedRfXType
+Private m_lMergeCellsCount      As Long
+Private m_oStylesCollection     As cBiff12Part
+Private m_bFlushed              As Boolean
+'--- debug
+Private m_sInstanceName         As String
+#If DebugMode Then
+    Private m_sDebugID          As String
+#End If
 
 '=========================================================================
-' Error handling
+' Error management
 '=========================================================================
+
+Friend Property Get frInstanceName() As String
+    frInstanceName = m_sInstanceName
+End Property
+
+Private Property Get MODULE_NAME() As String
+    #If DebugMode Then
+        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName, m_sDebugID)
+    #Else
+        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName)
+    #End If
+End Property
 
 Private Function PrintError(sFunction As String) As VbMsgBoxResult
 #If ImplUseShared Then
-    PopRaiseError sFunction, MODULE_NAME, PushError
+    PopPrintError sFunction, MODULE_NAME, PushError
 #Else
     Debug.Print MODULE_NAME & "." & sFunction & ": " & Err.Description
 #End If ' ImplUseShared
@@ -80,6 +97,10 @@ Property Let ColWidth(ByVal Index As Long, ByVal lValue As Long)
     m_aColWidth(Index) = lValue
 End Property
 
+Property Get RowCount() As Long
+    RowCount = m_lRowCount
+End Property
+
 '=========================================================================
 ' Methods
 '=========================================================================
@@ -91,7 +112,7 @@ Public Function Init( _
     Set m_oContainer = New cBiff12Container
     m_lColCount = lColCount
     m_lCompressionLevel = CompressionLevel
-    ReDim Preserve m_aColWidth(0 To m_lColCount) As Long
+    ReDim m_aColWidth(0 To m_lColCount) As Long
     If UseSST Then
         Set m_oStringsPart = m_oContainer.StringsPart
     End If
@@ -101,7 +122,6 @@ Public Function Init( _
     If Not m_oStringsPart Is Nothing Then
         pvBeginStrings m_oStringsPart
     End If
-    pvBeginSheet m_oSheetPart
     '--- prepare current row struct
     m_uRowHdr.m_ccolspan = 1
     ReDim m_uRowHdr.m_rgBrtColspan(0 To 0) As UcsBiff12BrtColSpanType
@@ -110,18 +130,31 @@ Public Function Init( _
     Init = True
 End Function
 
-Public Function AddRow(ByVal lRowIndex As Long, Optional RowHeight As Long) As Boolean
+Public Function AddRow(Optional ByVal RowIndex As Long = -1, Optional RowHeight As Long) As Boolean
     Const FUNC_NAME     As String = "AddRow"
     
     On Error GoTo EH
     If m_lColCount = 0 Then
         Err.Raise vbObjectError, , "Not initialized"
     End If
-    m_uRowHdr.m_rw = lRowIndex
-    m_uRowHdr.m_miyRw = IIf(RowHeight > 0, RowHeight, 288)
+    If RowIndex < 0 Then
+        RowIndex = m_lRowCount
+    End If
+    If m_oSheetPart.Size = 0 Then
+        pvBeginSheet m_oSheetPart
+    End If
+    m_uRowHdr.m_rw = RowIndex
+    If RowHeight > 0 Then
+        m_uRowHdr.m_miyRw = RowHeight
+        Const fUnsynced As Long = 2 ^ 13        '--- 2.4.726 BrtRowHdr: F - fUnsynced (1 bit): A bit that specifies whether the row height has been manually specified.
+        m_uRowHdr.m_flags = fUnsynced
+    Else
+        m_uRowHdr.m_miyRw = 288                 '--- note: this height is ignored (row auto-size)
+        m_uRowHdr.m_flags = 0
+    End If
     m_oSheetPart.OutputBrtRowHdr m_uRowHdr
-    If m_lRowCount < lRowIndex + 1 Then
-        m_lRowCount = lRowIndex + 1
+    If m_lRowCount < RowIndex + 1 Then
+        m_lRowCount = RowIndex + 1
     End If
     '--- success
     AddRow = True
@@ -194,9 +227,6 @@ Public Function MergeCells(ByVal lColIndex As Long, ByVal lMergeDown As Long, By
         .m_colLast = lColIndex + lMergeAcross - 1
     End With
     m_lMergeCellsCount = m_lMergeCellsCount + 1
-    If m_lRowCount < m_uRowHdr.m_rw + lMergeDown Then
-        m_lRowCount = m_uRowHdr.m_rw + lMergeDown
-    End If
     Exit Function
 EH:
     If PrintError(FUNC_NAME) = vbRetry Then
@@ -205,7 +235,7 @@ EH:
     Resume Next
 End Function
 
-Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lWidth As Long, ByVal lHeight As Long)
+Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft As Long, ByVal lTop As Long, ByVal lWidth As Long, ByVal lHeight As Long)
     Const STR_NS3       As String = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     Const STR_NS4       As String = "http://schemas.microsoft.com/office/drawing/2010/main"
     Dim oDrawingPart    As cBiff12Part
@@ -214,7 +244,7 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lWidth
     Dim oAttr           As Object
     Dim baTemp()        As Byte
     
-    Set oImagePart = m_oContainer.AddImageToSheet(m_oSheetPart, SheetDrawingPart:=oDrawingPart)
+    Set oImagePart = m_oContainer.AddImageToPart(m_oSheetPart, DrawingPart:=oDrawingPart)
     baTemp = baData
     oImagePart.Contents = baTemp
     Set oDoc = oDrawingPart.XmlDocument
@@ -222,15 +252,15 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lWidth
         .setAttribute "editAs", "oneCell"
         With .appendChild(oDoc.createElement("xdr:from"))
             .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
-            .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = 1
+            .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = lLeft
             .appendChild(oDoc.createElement("xdr:row")).nodeTypedValue = m_uRowHdr.m_rw
-            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = 0
+            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lTop
         End With
         With .appendChild(oDoc.createElement("xdr:to"))
             .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
-            .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = lWidth
+            .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = lLeft + lWidth
             .appendChild(oDoc.createElement("xdr:row")).nodeTypedValue = m_uRowHdr.m_rw
-            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lHeight
+            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lTop + lHeight
         End With
         With .appendChild(oDoc.createElement("xdr:pic"))
             With .appendChild(oDoc.createElement("xdr:nvPicPr"))
@@ -266,8 +296,8 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lWidth
             With .appendChild(oDoc.createElement("xdr:spPr"))
                 With .appendChild(oDoc.createElement("a:xfrm"))
                     With .appendChild(oDoc.createElement("a:off"))
-                        .setAttribute "x", 0
-                        .setAttribute "y", 0
+                        .setAttribute "x", lLeft
+                        .setAttribute "y", lTop
                     End With
                     With .appendChild(oDoc.createElement("a:ext"))
                         .setAttribute "cx", lWidth
@@ -388,6 +418,7 @@ Private Sub pvBeginSheet(oPart As cBiff12Part)
             Next
             .Output ucsBrtEndColInfos
         End If
+        .OutputCount3 ucsBrtWsFmtInfo, -1, &H1200008, 0
         '--- CELLTABLE = BrtBeginSheetData *1048576([ACCELLTABLE] BrtRowHdr *16384CELL *FRT) BrtEndSheetData
         .Output ucsBrtBeginSheetData
     End With
@@ -425,7 +456,6 @@ Private Sub pvBeginStyles(oPart As cBiff12Part)
     
     With oPart
         Set oStyle = New cBiff12CellStyle
-        oStyle.Format = "_-* #,##0\ ""ыт.""_-;\-* #,##0\ ""ыт.""_-;_-* ""-""\ ""ыт.""_-;_-@_-"
         '--- ToDo: This becomes default style for cells outside specified worksheet dimensions
         pvGetStyleIndex oStyle
     End With
@@ -501,7 +531,7 @@ Private Sub pvEndStyles(oPart As cBiff12Part)
             .OutputCount ucsBrtBeginFonts, cUnique.Count
             For Each oStyle In cUnique
                 uFont.m_dyHeight = oStyle.FontSize * 20                     '--- 20 * Points = Twips (https://support.microsoft.com/en-us/help/76388)
-                uFont.m_grbit = IIf(oStyle.Italic, 2, 0)                    '--- 2.5.52 FontFlags: B - fItalic (1 bit): A bit that specifies whether the text is italic.
+                uFont.m_grbit = -oStyle.Italic * 2                          '--- 2.5.52 FontFlags: B - fItalic (1 bit): A bit that specifies whether the text is italic.
                 uFont.m_bls = IIf(oStyle.Bold, 700, 400)
                 uFont.m_bFamily = 0                                         '--- 2.4.659 BrtFont: bFamily=0 - Not applicable
                 uFont.m_bCharSet = 1                                        '--- 2.4.659 BrtFont: bCharSet=1 - DEFAULT_CHARSET
@@ -595,8 +625,9 @@ Private Sub pvEndStyles(oPart As cBiff12Part)
             lAlc = 0                            '--- 2.4.824 BrtXF: alc=0 - General alignment
             lAlcv = 2                           '--- 2.4.824 BrtXF: alcv=2 - Bottom alignment
             Const fWrap As Long = 2 ^ 6         '--- 2.4.824 BrtXF: A - fWrap (1 bit): A bit that specifies whether the text in a cell is line-wrapped within the cell.
+            Const fShrinkToFit  As Long = 2 ^ 8 '--- 2.4.824 BrtXF: C - fShrinkToFit (1 bit): A bit that specifies whether the displayed text in the cell is shrink to fit.
             Const fLocked As Long = 2 ^ 12      '--- 2.4.824 BrtXF: F - fLocked (1 bit): A bit that specifies whether the locked protection property is set to true.
-            uXf.m_flags = lAlc Or (lAlcv * 8) Or IIf(oStyle.WrapText, fWrap, 0) Or fLocked
+            uXf.m_flags = lAlc Or (lAlcv * 8) Or (-oStyle.WrapText * fWrap) Or (-oStyle.ShrinkText * fShrinkToFit) Or fLocked
             .OutputBrtXf uXf
         .Output ucsBrtEndCellStyleXFs
         '--- 2.1.7.50 Styles: CELLXFS = BrtBeginCellXFs 1*65430(BrtXF *FRT) BrtEndCellXFs
@@ -610,9 +641,23 @@ Private Sub pvEndStyles(oPart As cBiff12Part)
             uXf.m_ixBorder = oStyle.BorderIndex
             uXf.m_trot = 0                      '--- 2.4.824 BrtXF: 0-90 - Text rotated counterclockwise 0 to 90 degrees
             uXf.m_indent = oStyle.LeftIndent    '--- 2.4.824 BrtXF: An unsigned integer that specifies the indentation level for text in a cell.
-            lAlc = oStyle.HorAlign + 1          '--- 2.4.824 BrtXF: alc=1 - Left alignment, alc=2 - Center Alignment, alc=3 - Right alignment
-            lAlcv = 2                           '--- 2.4.824 BrtXF: alcv=0 - Top alignment, alcv=1 - Center alignment, alcv=2 - Bottom alignment
-            uXf.m_flags = lAlc Or (lAlcv * 8) Or IIf(oStyle.WrapText, fWrap, 0) Or fLocked
+            Select Case oStyle.HorAlign         '--- 2.4.824 BrtXF: alc=1 - Left alignment, alc=2 - Center Alignment, alc=3 - Right alignment
+            Case ucsHalCenter
+                lAlc = 2
+            Case ucsHalRight
+                lAlc = 3
+            Case Else
+                lAlc = 0
+            End Select
+            Select Case oStyle.VertAlign        '--- 2.4.824 BrtXF: alcv=0 - Top alignment, alcv=1 - Center alignment, alcv=2 - Bottom alignment
+            Case ucsValMiddle
+                lAlcv = 1
+            Case ucsValBottom
+                lAlcv = 2
+            Case Else
+                lAlcv = 0
+            End Select
+            uXf.m_flags = lAlc Or (lAlcv * 8) Or (-oStyle.WrapText * fWrap) Or (-oStyle.ShrinkText * fShrinkToFit) Or fLocked
             uXf.m_xfGrbitAtr = 0
             .OutputBrtXf uXf
         Next
@@ -710,6 +755,13 @@ End Sub
 ' Base class events
 '=========================================================================
 
-Private Sub Class_Initialize()
-    m_aColWidth = ApiEmptyLongArray()
-End Sub
+#If DebugMode Then
+    Private Sub Class_Initialize()
+        DebugInstanceInit STR_MODULE_NAME, m_sDebugID, Me
+    End Sub
+
+    Private Sub Class_Terminate()
+        DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
+    End Sub
+#End If
+

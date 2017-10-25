@@ -20,7 +20,7 @@ Attribute VB_Exposed = False
 '=========================================================================
 Option Explicit
 DefObj A-Z
-Private Const MODULE_NAME As String = "cBiff12Container"
+Private Const STR_MODULE_NAME As String = "cBiff12Container"
 
 #Const ImplUseShared = BIFF12_USESHARED
 
@@ -32,7 +32,7 @@ Private Const MODULE_NAME As String = "cBiff12Container"
 Private Const CP_UTF8                       As Long = 65001
 
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
-Private Declare Function ApiEmptyBiff12PartArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbObject, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As cBiff12Part()
+'Private Declare Function ApiEmptyBiff12PartArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbObject, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As cBiff12Part()
 #If ImplUseShared = 0 Then
     Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
     Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
@@ -43,13 +43,18 @@ Private Declare Function ApiEmptyBiff12PartArray Lib "oleaut32" Alias "SafeArray
 ' Constants and member variables
 '=========================================================================
 
-Private Const STR_ROOT                  As String = "/[Content_Types].xml"
-Private Const STR_XML_PROLOG            As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" & vbCrLf
+Private Const STR_ROOT              As String = "/[Content_Types].xml"
+Private Const STR_XML_PROLOG        As String = "version=""1.0"" encoding=""UTF-8"" standalone=""yes"""
 
-Private m_uState                    As UcsStateType
+Private m_uState                As UcsStateType
+'--- debug
+Private m_sInstanceName         As String
+#If DebugMode Then
+    Private m_sDebugID          As String
+#End If
 
 Private Type UcsRelationType
-    Id                  As String
+    ID                  As String
     RelType             As String
     RelTarget           As String
 End Type
@@ -76,15 +81,28 @@ Private Type UcsStateType
     SheetParts()        As cBiff12Part
     DrawingParts()      As cBiff12Part
     ImagesParts()       As cBiff12Part
+    PartFolders         As Collection
 End Type
 
 '=========================================================================
-' Error handling
+' Error management
 '=========================================================================
+
+Friend Property Get frInstanceName() As String
+    frInstanceName = m_sInstanceName
+End Property
+
+Private Property Get MODULE_NAME() As String
+    #If DebugMode Then
+        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName, m_sDebugID)
+    #Else
+        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName)
+    #End If
+End Property
 
 Private Function PrintError(sFunction As String) As VbMsgBoxResult
 #If ImplUseShared Then
-    PopRaiseError sFunction, MODULE_NAME, PushError
+    PopPrintError sFunction, MODULE_NAME, PushError
 #Else
     Debug.Print MODULE_NAME & "." & sFunction & ": " & Err.Description
 #End If ' ImplUseShared
@@ -94,10 +112,24 @@ End Function
 ' Properties
 '=========================================================================
 
+Property Get PartFolder(sPartName As String) As String
+    SearchCollection m_uState.PartFolders, "#" & sPartName, PartFolder
+End Property
+
+Property Let PartFolder(sPartName As String, sValue As String)
+    RemoveCollection m_uState.PartFolders, "#" & sPartName
+    If LenB(sValue) <> 0 Then
+        If m_uState.PartFolders Is Nothing Then
+            Set m_uState.PartFolders = New Collection
+        End If
+        m_uState.PartFolders.Add sValue, "#" & sPartName
+    End If
+End Property
+
 Property Get CorePropsPart() As cBiff12Part
     Set CorePropsPart = m_uState.CorePropsPart
     If CorePropsPart Is Nothing Then
-        Set CorePropsPart = AddXmlPart("/docProps/core.xml", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", "application/vnd.openxmlformats-package.core-properties+xml")
+        Set CorePropsPart = AddXmlPart(pvPathCombile("/docProps", "core.xml"), "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", "application/vnd.openxmlformats-package.core-properties+xml")
         Set m_uState.CorePropsPart = CorePropsPart
         pvAddRelation STR_ROOT, pvPathDifference(STR_ROOT, CorePropsPart.Name), CorePropsPart.Type_
     End If
@@ -106,7 +138,7 @@ End Property
 Property Get AppPropsPart() As cBiff12Part
     Set AppPropsPart = m_uState.AppPropsPart
     If AppPropsPart Is Nothing Then
-        Set AppPropsPart = AddXmlPart("/docProps/app.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", "application/vnd.openxmlformats-officedocument.extended-properties+xml")
+        Set AppPropsPart = AddXmlPart(pvPathCombile("/docProps", "app.xml"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", "application/vnd.openxmlformats-officedocument.extended-properties+xml")
         Set m_uState.AppPropsPart = AppPropsPart
         pvAddRelation STR_ROOT, pvPathDifference(STR_ROOT, AppPropsPart.Name), AppPropsPart.Type_
     End If
@@ -117,15 +149,15 @@ Property Get WorkbookPart() As cBiff12Part
     
     Set WorkbookPart = m_uState.WorkbookPart
     If WorkbookPart Is Nothing Then
-        Set WorkbookPart = AddBinPart("/xl/workbook.bin", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", "application/vnd.ms-excel.workbook")
+        Set WorkbookPart = AddBinPart(pvPathCombile("/xl", "workbook.bin"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", "application/vnd.ms-excel.workbook")
         Set m_uState.WorkbookPart = WorkbookPart
         pvAddRelation STR_ROOT, pvPathDifference(STR_ROOT, WorkbookPart.Name), WorkbookPart.Type_
         AddRelation WorkbookPart, m_uState.StylesPart
-        For lIdx = 0 To UBound(m_uState.ThemeParts)
+        For lIdx = 0 To pvUbound(m_uState.ThemeParts)
             AddRelation WorkbookPart, m_uState.ThemeParts(lIdx)
         Next
         AddRelation WorkbookPart, m_uState.StringsPart
-        For lIdx = 0 To UBound(m_uState.SheetParts)
+        For lIdx = 0 To pvUbound(m_uState.SheetParts)
             AddRelation WorkbookPart, m_uState.SheetParts(lIdx)
         Next
     End If
@@ -134,19 +166,19 @@ End Property
 Property Get StylesPart() As cBiff12Part
     Set StylesPart = m_uState.StylesPart
     If StylesPart Is Nothing Then
-        Set StylesPart = AddBinPart("/xl/styles.bin", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", "application/vnd.ms-excel.styles")
+        Set StylesPart = AddBinPart(pvPathCombile("/xl", "styles.bin"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", "application/vnd.ms-excel.styles")
         Set m_uState.StylesPart = StylesPart
         AddRelation m_uState.WorkbookPart, StylesPart
     End If
 End Property
 
 Property Get ThemePart(Optional ByVal Index As Long = 1) As cBiff12Part
-    If UBound(m_uState.ThemeParts) >= Index Then
+    If pvUbound(m_uState.ThemeParts) >= Index Then
         Set ThemePart = m_uState.ThemeParts(Index)
     End If
     If ThemePart Is Nothing Then
-        Set ThemePart = AddXmlPart(Replace("/xl/theme/theme{0}.xml", "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme", "application/vnd.openxmlformats-officedocument.theme+xml")
-        If UBound(m_uState.ThemeParts) < Index Then
+        Set ThemePart = AddXmlPart(Replace(pvPathCombile("/xl/theme", "theme{0}.xml"), "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme", "application/vnd.openxmlformats-officedocument.theme+xml")
+        If pvUbound(m_uState.ThemeParts) < Index Then
             ReDim Preserve m_uState.ThemeParts(0 To Index) As cBiff12Part
         End If
         Set m_uState.ThemeParts(Index) = ThemePart
@@ -157,19 +189,19 @@ End Property
 Property Get StringsPart() As cBiff12Part
     Set StringsPart = m_uState.StringsPart
     If StringsPart Is Nothing Then
-        Set StringsPart = AddBinPart("/xl/sharedStrings.bin", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "application/vnd.ms-excel.sharedStrings")
+        Set StringsPart = AddBinPart(pvPathCombile("/xl", "sharedStrings.bin"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", "application/vnd.ms-excel.sharedStrings")
         Set m_uState.StringsPart = StringsPart
         AddRelation m_uState.WorkbookPart, StringsPart
     End If
 End Property
 
 Property Get SheetPart(Optional ByVal Index As Long = 1) As cBiff12Part
-    If UBound(m_uState.SheetParts) >= Index Then
+    If pvUbound(m_uState.SheetParts) >= Index Then
         Set SheetPart = m_uState.SheetParts(Index)
     End If
     If SheetPart Is Nothing Then
-        Set SheetPart = AddBinPart(Replace("/xl/worksheets/sheet{0}.bin", "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "application/vnd.ms-excel.worksheet")
-        If UBound(m_uState.SheetParts) < Index Then
+        Set SheetPart = AddBinPart(Replace(pvPathCombile("/xl/worksheets", "sheet{0}.bin"), "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet", "application/vnd.ms-excel.worksheet")
+        If pvUbound(m_uState.SheetParts) < Index Then
             ReDim Preserve m_uState.SheetParts(0 To Index) As cBiff12Part
         End If
         Set m_uState.SheetParts(Index) = SheetPart
@@ -181,26 +213,34 @@ Property Get DrawingPart(Optional ByVal Index As Long = 1) As cBiff12Part
     Const STR_NS1       As String = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
     Const STR_NS2       As String = "http://schemas.openxmlformats.org/drawingml/2006/main"
     
-    If UBound(m_uState.DrawingParts) >= Index Then
+    If pvUbound(m_uState.DrawingParts) >= Index Then
         Set DrawingPart = m_uState.DrawingParts(Index)
     End If
     If DrawingPart Is Nothing Then
-        Set DrawingPart = AddXmlPart(Replace("/xl/drawings/drawing{0}.xml", "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing", "application/vnd.openxmlformats-officedocument.drawing+xml")
-        If UBound(m_uState.DrawingParts) < Index Then
+        Set DrawingPart = AddXmlPart(Replace(pvPathCombile("/xl/drawings", "drawing{0}.xml"), "{0}", Index), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing", "application/vnd.openxmlformats-officedocument.drawing+xml")
+        If pvUbound(m_uState.DrawingParts) < Index Then
             ReDim Preserve m_uState.DrawingParts(0 To Index) As cBiff12Part
         End If
         Set m_uState.DrawingParts(Index) = DrawingPart
-        AddRelation SheetPart(Index), DrawingPart
-        With DrawingPart.XmlDocument
-            With .appendChild(.createNode(1, "xdr:wsDr", STR_NS1))
-                .setAttribute "xmlns:a", STR_NS2
+        If pvUbound(m_uState.SheetParts) >= Index Then
+            AddRelation SheetPart(Index), DrawingPart
+            With DrawingPart.XmlDocument
+                .appendChild .createProcessingInstruction("xml", STR_XML_PROLOG)
+                With .appendChild(.createNode(1, "xdr:wsDr", STR_NS1))
+                    .setAttribute "xmlns:a", STR_NS2
+                End With
             End With
-        End With
+        Else
+            pvAddRelation STR_ROOT, pvPathDifference(STR_ROOT, DrawingPart.Name), DrawingPart.Type_
+            If pvUbound(m_uState.ThemeParts) >= 0 Then
+                AddRelation DrawingPart, ThemePart
+            End If
+        End If
     End If
 End Property
 
 Property Get ImagePartsCount() As Long
-    ImagePartsCount = UBound(m_uState.ImagesParts) + 1
+    ImagePartsCount = pvUbound(m_uState.ImagesParts) + 1
 End Property
 
 '=========================================================================
@@ -245,30 +285,32 @@ Public Function AddPart(sPartName As String, sPartType As String, vContents As V
     End With
 End Function
 
-Public Function AddImageToSheet(oSheetPart As cBiff12Part, Optional SheetDrawingPart As cBiff12Part) As cBiff12Part
+Public Function AddImageToPart(Optional SheetPart As cBiff12Part, Optional DrawingPart As cBiff12Part) As cBiff12Part
     Dim lIdx            As Long
     Dim lCount          As Long
     
-    lIdx = m_uState.PartsIndex.Item(oSheetPart.Name)
-    If SheetDrawingPart Is Nothing Then
-        Set SheetDrawingPart = DrawingPart(lIdx)
+    If Not SheetPart Is Nothing Then
+        For lIdx = LBound(m_uState.SheetParts) To pvUbound(m_uState.SheetParts)
+            If m_uState.SheetParts(lIdx) Is SheetPart Then
+                Set DrawingPart = Me.DrawingPart(lIdx)
+                Exit For
+            End If
+        Next
+        lIdx = m_uState.PartsIndex.Item(SheetPart.Name)
     End If
-    lCount = UBound(m_uState.ImagesParts) + 1
-    Set AddImageToSheet = AddBinPart(Replace("/xl/media/image{0}.png", "{0}", lCount + 1), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", "image/png")
+    lCount = pvUbound(m_uState.ImagesParts) + 1
+    Set AddImageToPart = AddBinPart(Replace(pvPathCombile("/xl/media", "image{0}.png"), "{0}", lCount + 1), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", "image/png")
     ReDim Preserve m_uState.ImagesParts(0 To lCount)
-    Set m_uState.ImagesParts(lCount) = AddImageToSheet
-    AddRelation SheetDrawingPart, AddImageToSheet
+    Set m_uState.ImagesParts(lCount) = AddImageToPart
+    AddRelation DrawingPart, AddImageToPart
     '--- append to sheet images
-    With m_uState.Parts(lIdx)
-        If Peek(ArrPtr(.ImagesParts)) = 0 Then
-            lCount = 0
-            ReDim .ImagesParts(0 To lCount) As cBiff12Part
-        Else
-            lCount = UBound(.ImagesParts) + 1
+    If Not SheetPart Is Nothing Then
+        With m_uState.Parts(lIdx)
+            lCount = pvUbound(.ImagesParts) + 1
             ReDim Preserve .ImagesParts(0 To lCount) As cBiff12Part
-        End If
-        Set .ImagesParts(lCount) = AddImageToSheet
-    End With
+            Set .ImagesParts(lCount) = AddImageToPart
+        End With
+    End If
 End Function
 
 Public Function AddRelation(oPart As cBiff12Part, oTarget As cBiff12Part) As String
@@ -286,7 +328,7 @@ Public Function GetRelID(oPart As cBiff12Part, oTarget As cBiff12Part) As String
     sRelTarget = pvPathDifference(sPartName, oTarget.Name)
     With m_uState.Parts(m_uState.PartsIndex.Item(sPartName))
         If SearchCollection(.RelationsIndex, sRelTarget, RetVal:=lIdx) Then
-            GetRelID = .Relations(lIdx).Id
+            GetRelID = .Relations(lIdx).ID
         End If
     End With
 End Function
@@ -295,12 +337,13 @@ Public Function GetImagesCount(oSheetPart As cBiff12Part, Optional SheetDrawingP
     Dim lIdx            As Long
     
     lIdx = m_uState.PartsIndex.Item(oSheetPart.Name)
-    With m_uState.Parts(lIdx)
-        If Peek(ArrPtr(.ImagesParts)) <> 0 Then
-            GetImagesCount = UBound(.ImagesParts) + 1
-            Set SheetDrawingPart = DrawingPart(lIdx)
+    GetImagesCount = pvUbound(m_uState.Parts(lIdx).ImagesParts) + 1
+    For lIdx = 0 To pvUbound(m_uState.SheetParts)
+        If m_uState.SheetParts(lIdx) Is oSheetPart Then
+            Set SheetDrawingPart = Me.DrawingPart(lIdx)
+            Exit For
         End If
-    End With
+    Next
 End Function
 
 Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) As Boolean
@@ -338,7 +381,8 @@ Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) 
     Next
     '--- construct root [Content_Types].xml
     Set oDoc = m_uState.Parts(0).Contents.XmlDocument
-    oDoc.loadXml vbNullString
+    oDoc.LoadXml vbNullString
+    oDoc.appendChild oDoc.createProcessingInstruction("xml", STR_XML_PROLOG)
     Set oRoot = oDoc.appendChild(oDoc.createNode(1, "Types", STR_NS))
     For Each vElem In cDefaults
         vElem = Split(vElem, "=")
@@ -385,13 +429,13 @@ Private Function pvAddRelation(sPartName As String, sRelTarget As String, sRelTy
             lIdx = UBound(.Relations)
             .RelationsIndex.Add lIdx, sRelTarget
             With .Relations(lIdx)
-                .Id = "rId" & (lIdx + 1)
+                .ID = "rId" & (lIdx + 1)
                 .RelType = sRelType
                 .RelTarget = sRelTarget
             End With
         End If
         '--- retval
-        pvAddRelation = .Relations(lIdx).Id
+        pvAddRelation = .Relations(lIdx).ID
     End With
 End Function
 
@@ -406,16 +450,17 @@ Private Sub pvWriteRelations(oArchive As cZipArchive, sFile As String, uRels() A
     On Error GoTo EH
     If Peek(ArrPtr(uRels)) <> 0 Then
         Set oDoc = CreateObject("MSXML2.DOMDocument")
+        oDoc.appendChild oDoc.createProcessingInstruction("xml", STR_XML_PROLOG)
         Set oRoot = oDoc.appendChild(oDoc.createNode(1, "Relationships", STR_NS))
         For lIdx = 0 To UBound(uRels)
             With oRoot.appendChild(oDoc.createNode(1, "Relationship", STR_NS))
-                .setAttribute "Id", uRels(lIdx).Id
+                .setAttribute "Id", uRels(lIdx).ID
                 .setAttribute "Type", uRels(lIdx).RelType
                 .setAttribute "Target", uRels(lIdx).RelTarget
             End With
         Next
         Set oPart = New cBiff12Part
-        oPart.Contents = ToUtf8Array(STR_XML_PROLOG & oDoc.xml)
+        oPart.Contents = ToUtf8Array(oDoc.Xml)
         lIdx = InStrRev(sFile, "\")
         oArchive.AddFile oPart, Mid$(Left$(sFile, lIdx) & "_rels\" & Mid$(sFile, lIdx + 1) & ".rels", 2)
     End If
@@ -464,6 +509,19 @@ EH:
     Resume Next
 End Function
 
+Private Function pvPathCombile(sPath As String, sPartName As String) As String
+    sPath = Zn(PartFolder(sPartName), sPath)
+    pvPathCombile = sPath & IIf(LenB(sPath) <> 0 And Right$(sPath, 1) <> "/" And LenB(sPartName) <> 0, "/", vbNullString) & sPartName
+End Function
+
+Private Function pvUbound(aData() As cBiff12Part) As Long
+    If Peek(ArrPtr(aData)) = 0 Then
+        pvUbound = -1
+    Else
+        pvUbound = UBound(aData)
+    End If
+End Function
+
 #If ImplUseShared = 0 Then
 
 Private Function Peek(ByVal lPtr As Long) As Long
@@ -506,10 +564,15 @@ End Sub
 '=========================================================================
 
 Private Sub Class_Initialize()
-    m_uState.ThemeParts = ApiEmptyBiff12PartArray()
-    m_uState.SheetParts = ApiEmptyBiff12PartArray()
-    m_uState.DrawingParts = ApiEmptyBiff12PartArray()
-    m_uState.ImagesParts = ApiEmptyBiff12PartArray()
+    #If DebugMode Then
+        DebugInstanceInit STR_MODULE_NAME, m_sDebugID, Me
+    #End If
     AddXmlPart STR_ROOT, "package", vbNullString
 End Sub
+
+#If DebugMode Then
+    Private Sub Class_Terminate()
+        DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
+    End Sub
+#End If
 

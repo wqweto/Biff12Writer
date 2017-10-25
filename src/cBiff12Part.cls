@@ -8,7 +8,7 @@ BEGIN
 END
 Attribute VB_Name = "cBiff12Part"
 Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = True
+Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 '=========================================================================
@@ -20,18 +20,19 @@ Attribute VB_Exposed = False
 '=========================================================================
 Option Explicit
 DefObj A-Z
-Private Const MODULE_NAME As String = "cBiff12Part"
+Private Const STR_MODULE_NAME As String = "cBiff12Part"
 
 #Const ImplUseShared = BIFF12_USESHARED
+#Const ImplPublicClasses = BIFF12_PUBLICCLASSES
 
 '=========================================================================
 ' API
 '=========================================================================
 
 '--- for SetFilePointer
-Private Const FILE_BEGIN                As Long = 0
-Private Const FILE_CURRENT              As Long = 1
-Private Const FILE_END                  As Long = 2
+Private Const FILE_BEGIN                    As Long = 0
+Private Const FILE_CURRENT                  As Long = 1
+Private Const FILE_END                      As Long = 2
 '--- for WideCharToMultiByte
 Private Const CP_UTF8                       As Long = 65001
 
@@ -867,7 +868,7 @@ Public Enum UcsBiff12RecortTypeEnum
     ucsBrtSXDI15 = &H858
 End Enum
 
-#If ImplUseShared = 0 Then
+#If ImplPublicClasses Then
 
 Public Type UcsBiff12BrtColorType
     m_xColorType        As Byte
@@ -1023,7 +1024,7 @@ Public Type UcsBiff12BrtFileVersionType
     m_stRupBuild        As String
 End Type
 
-#End If ' ImplUseShared
+#End If ' ImplPublicClasses
 
 '=========================================================================
 ' API
@@ -1040,25 +1041,31 @@ Private Declare Function VariantChangeType Lib "oleaut32" (Dest As Variant, src 
 ' Constants and member variables
 '=========================================================================
 
-Private Const LNG_SST_HASH_SIZE         As Long = 8192
-Private Const LNG_RK_MAXINT             As Long = 2 ^ 29 - 1
-Private Const LNG_RK_FX100              As Long = 1
-Private Const LNG_RK_FINT               As Long = 2
-Private Const LNG_RK_NUMOFFSET          As Long = 4
+Private Const LNG_SST_HASH_SIZE     As Long = 2 ^ 13
+Private Const LNG_RK_MAXINT         As Long = 2 ^ 29 - 1
+Private Const LNG_RK_FX100          As Long = 1
+Private Const LNG_RK_FINT           As Long = 2
+Private Const LNG_RK_NUMOFFSET      As Long = 4
 
-Private m_baBuffer()                As Byte
-Private m_lSize                     As Long
-Private m_lPosition                 As Long
-Private m_uaSstHashEntries()        As UcsSstHashEntryType
-Private m_lSstCount                 As Long
-Private m_lSstCapacity              As Long
-Private m_sName                     As String
-Private m_sType                     As String
-Private m_oXmlDocument              As Object
+Private m_baBuffer()            As Byte
+Private m_lSize                 As Long
+Private m_lPosition             As Long
+Private m_uaSstHashEntries()    As UcsSstHashEntryType
+Private m_laSstKeyPositions()   As Long
+Private m_lSstCount             As Long
+Private m_lSstCapacity          As Long
+Private m_sName                 As String
+Private m_sType                 As String
+Private m_oXmlDocument          As Object
 #If ImplUseShared = 0 Then
-Private m_uPeekArray                As UcsSafeArraySingleDimension
-Private m_aPeekBuffer()             As Integer
+Private m_uPeekArray            As UcsSafeArraySingleDimension
+Private m_aPeekBuffer()         As Integer
 #End If ' ImplUseShared
+'--- debug
+Private m_sInstanceName         As String
+#If DebugMode Then
+    Private m_sDebugID          As String
+#End If
 
 Private Type VBGUID
     Data1               As Long
@@ -1086,15 +1093,29 @@ End Type
 #End If ' ImplUseShared
 
 '=========================================================================
-' Error handling
+' Error management
 '=========================================================================
 
-Private Function PrintError(sFunction As String) As VbMsgBoxResult
-#If ImplUseShared Then
-    PopRaiseError sFunction, MODULE_NAME, PushError
-#Else
-    Debug.Print MODULE_NAME & "." & sFunction & ": " & Err.Description
-#End If ' ImplUseShared
+Friend Property Get frInstanceName() As String
+    frInstanceName = m_sInstanceName
+End Property
+
+Private Property Get MODULE_NAME() As String
+    #If DebugMode Then
+        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName, m_sDebugID)
+    #Else
+        MODULE_NAME = GetModuleInstance(STR_MODULE_NAME, frInstanceName)
+    #End If
+End Property
+
+Private Function RaiseError(sFunction As String) As VbMsgBoxResult
+    Dim vErr            As Variant
+    
+    PushError vErr
+'    RaiseError = GApp.HandleOutOfMemory(vErr)
+    If RaiseError <> vbRetry Then
+        PopRaiseError sFunction, MODULE_NAME, vErr
+    End If
 End Function
 
 '=========================================================================
@@ -1115,9 +1136,13 @@ Property Get Ptr(Optional ByVal lPosition As Long) As Long
     End If
 End Property
 
+Property Get Size() As Long
+    Size = m_lSize
+End Property
+
 Property Get Contents() As Byte()
     If Not m_oXmlDocument Is Nothing Then
-        Contents = ToUtf8Array(m_oXmlDocument.xml)
+        Contents = ToUtf8Array(m_oXmlDocument.Xml)
     ElseIf m_lSize > 0 Then
         ReDim Preserve m_baBuffer(0 To m_lSize - 1) As Byte
         Contents = m_baBuffer
@@ -1128,7 +1153,7 @@ End Property
 
 Property Let Contents(baValue() As Byte)
     If Not m_oXmlDocument Is Nothing Then
-        m_oXmlDocument.xml = FromUtf8Array(baValue)
+        m_oXmlDocument.Xml = FromUtf8Array(baValue)
     Else
         m_baBuffer = baValue
         m_lPosition = 0
@@ -1540,10 +1565,10 @@ End Function
 
 '= output brt structs ====================================================
 
-#If ImplUseShared Then
-Friend Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
+#Else
+Friend Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
 #End If
     Const FIXED_SIZE    As Long = 2
     Dim lSize           As Long
@@ -1556,10 +1581,10 @@ Public Function OutputBrtFmt(uFmt As UcsBiff12BrtFmtType) As Long
     Debug.Assert OutputBrtFmt + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
+#Else
+Friend Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
 #End If
     Const FIXED_SIZE    As Long = 21
     Dim lSize           As Long
@@ -1572,10 +1597,10 @@ Public Function OutputBrtFont(uFont As UcsBiff12BrtFontType) As Long
     Debug.Assert OutputBrtFont + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
+#Else
+Friend Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
 #End If
     Const FIXED_SIZE    As Long = 68
     Const GRSTOP_SIZE   As Long = 16
@@ -1592,10 +1617,10 @@ Public Function OutputBrtFill(uFill As UcsBiff12BrtFillType) As Long
     Debug.Assert OutputBrtFill + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
+#Else
+Friend Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
 #End If
     Const FIXED_SIZE    As Long = 50
     Dim lSize           As Long
@@ -1608,10 +1633,10 @@ Public Function OutputBrtBorder(uBorder As UcsBiff12BrtBorderType) As Long
     Debug.Assert OutputBrtBorder + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
+#Else
+Friend Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
 #End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
@@ -1623,10 +1648,10 @@ Public Function OutputBrtXf(uXf As UcsBiff12BrtXfType) As Long
     Debug.Assert OutputBrtXf + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
+#Else
+Friend Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
 #End If
     Const FIXED_SIZE    As Long = 8
     Dim lSize           As Long
@@ -1639,10 +1664,10 @@ Public Function OutputBrtStyle(uStyle As UcsBiff12BrtStyleType) As Long
     Debug.Assert OutputBrtStyle + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
+#Else
+Friend Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
 #End If
     Const FIXED_SIZE    As Long = 8
     Dim lSize           As Long
@@ -1655,10 +1680,10 @@ Public Function OutputBrtWbProp(uWbProp As UcsBiff12BrtWbPropType) As Long
     Debug.Assert OutputBrtWbProp + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
+#Else
+Friend Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
 #End If
     Const FIXED_SIZE    As Long = 29
     Dim lSize           As Long
@@ -1670,10 +1695,10 @@ Public Function OutputBrtBookView(uBookView As UcsBiff12BrtBookViewType) As Long
     Debug.Assert OutputBrtBookView + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
+#Else
+Friend Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
 #End If
     Const FIXED_SIZE    As Long = 8
     Dim lSize           As Long
@@ -1687,10 +1712,10 @@ Public Function OutputBrtBundleSh(uBundle As UcsBiff12BrtBundleShType) As Long
     Debug.Assert OutputBrtBundleSh + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
+#Else
+Friend Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
 #End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
@@ -1702,10 +1727,10 @@ Public Function OutputBrtWsDim(uWsDim As UcsBiff12UncheckedRfXType) As Long
     Debug.Assert OutputBrtWsDim + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
+#Else
+Friend Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
 #End If
     Const FLAGS_SIZE    As Long = 3
     Const FIXED_SIZE    As Long = 16
@@ -1720,10 +1745,10 @@ Public Function OutputBrtWsProp(uWsProp As UcsBiff12BrtWsPropType) As Long
     Debug.Assert OutputBrtWsProp + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
+#Else
+Friend Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
 #End If
     Const FIXED_SIZE    As Long = 18
     Dim lSize           As Long
@@ -1735,10 +1760,10 @@ Public Function OutputBrtColInfo(uColInfo As UcsBiff12BrtColInfoType) As Long
     Debug.Assert OutputBrtColInfo + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
+#Else
+Friend Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
 #End If
     Const FIXED_SIZE    As Long = 10
     Const COLSPAN_SIZE  As Long = 8
@@ -1757,10 +1782,10 @@ Public Function OutputBrtRowHdr(uRowHdr As UcsBiff12BrtRowHdrType) As Long
     Debug.Assert OutputBrtRowHdr + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As Long
+#Else
+Friend Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As Long
 #End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
@@ -1772,10 +1797,10 @@ Public Function OutputBrtMergeCell(uMergeCell As UcsBiff12UncheckedRfXType) As L
     Debug.Assert OutputBrtMergeCell + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
+#Else
+Friend Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
 #End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
@@ -1787,10 +1812,10 @@ Public Function OutputBrtOleSize(uOleSize As UcsBiff12UncheckedRfXType) As Long
     Debug.Assert OutputBrtOleSize + lSize = m_lPosition
 End Function
 
-#If ImplUseShared Then
-Friend Function OutputBrtFileVersion(uFileVersion As UcsBiff12BrtFileVersionType) As Long
-#Else
+#If ImplPublicClasses Then
 Public Function OutputBrtFileVersion(uFileVersion As UcsBiff12BrtFileVersionType) As Long
+#Else
+Friend Function OutputBrtFileVersion(uFileVersion As UcsBiff12BrtFileVersionType) As Long
 #End If
     Const FIXED_SIZE    As Long = 16
     Dim lSize           As Long
@@ -1827,6 +1852,14 @@ End Function
 '= shared strings table ==================================================
 
 Public Function SstGetIndex(sText As String) As Long
+    SstGetIndex = m_uaSstHashEntries(pvSstGetInternal(sText)).Index
+End Function
+
+Public Function SstGetPosition(sText As String) As Long
+    SstGetPosition = m_uaSstHashEntries(pvSstGetInternal(sText)).KeyPosition
+End Function
+
+Public Function pvSstGetInternal(sText As String) As Long
     Const FUNC_NAME     As String = "SstGetIndex"
     Dim lIdx            As Long
     Dim lPrevIdx        As Long
@@ -1840,6 +1873,7 @@ Public Function SstGetIndex(sText As String) As Long
     If m_uaSstHashEntries(lIdx).KeyPosition = 0 Then
         m_uaSstHashEntries(lIdx).KeyPosition = OutputBrtSstItem(sText) + 1
         m_uaSstHashEntries(lIdx).Index = m_lSstCount
+        m_uaSstHashEntries(lIdx).NextEntry = -1
         m_lSstCount = m_lSstCount + 1
     Else
         lPrevPosition = m_lPosition
@@ -1853,7 +1887,7 @@ Public Function SstGetIndex(sText As String) As Long
             End If
             lPrevIdx = lIdx
             lIdx = m_uaSstHashEntries(lPrevIdx).NextEntry
-            If lIdx = 0 Then
+            If lIdx = -1 Then
                 lIdx = LNG_SST_HASH_SIZE + m_lSstCapacity
                 m_uaSstHashEntries(lPrevIdx).NextEntry = lIdx
                 m_lSstCapacity = m_lSstCapacity + 1
@@ -1863,6 +1897,7 @@ Public Function SstGetIndex(sText As String) As Long
                 m_lPosition = lPrevPosition
                 m_uaSstHashEntries(lIdx).KeyPosition = OutputBrtSstItem(sText) + 1
                 m_uaSstHashEntries(lIdx).Index = m_lSstCount
+                m_uaSstHashEntries(lIdx).NextEntry = -1
                 m_lSstCount = m_lSstCount + 1
                 lPrevPosition = m_lPosition
                 Exit Do
@@ -1870,18 +1905,81 @@ Public Function SstGetIndex(sText As String) As Long
         Loop
         m_lPosition = lPrevPosition
     End If
-    SstGetIndex = m_uaSstHashEntries(lIdx).Index
+    Erase m_laSstKeyPositions
+    pvSstGetInternal = lIdx
     Exit Function
 EH:
-    If PrintError(FUNC_NAME) = vbRetry Then
+    If RaiseError(FUNC_NAME) = vbRetry Then
         Resume
     End If
-    Resume Next
+End Function
+
+Public Function SstFromPosition(ByVal lPos As Long) As String
+    Const FUNC_NAME     As String = "SstFromPosition"
+    Dim lPrevPosition   As Long
+    
+    On Error GoTo EH
+    If lPos > 0 Then
+        lPrevPosition = m_lPosition
+        m_lPosition = lPos
+        SstFromPosition = ReadString()
+        m_lPosition = lPrevPosition
+    End If
+    Exit Function
+EH:
+    If RaiseError(FUNC_NAME) = vbRetry Then
+        Resume
+    End If
+End Function
+
+Public Function SstSizeFromPosition(ByVal lPos As Long) As Long
+    Dim lPrevPosition   As Long
+    Const FUNC_NAME     As String = "SstSizeFromPosition"
+    
+    On Error GoTo EH
+    SstSizeFromPosition = 0
+    If lPos > 0 Then
+        lPrevPosition = m_lPosition
+        m_lPosition = lPos
+        SstSizeFromPosition = ReadDWord()
+        m_lPosition = lPrevPosition
+    End If
+    Exit Function
+EH:
+    If RaiseError(FUNC_NAME) = vbRetry Then
+        Resume
+    End If
+End Function
+
+Public Function SstFromIndex(ByVal lIndex As Long) As String
+    Const FUNC_NAME     As String = "SstFromIndex"
+    Dim lIdx            As Long
+
+    On Error GoTo EH
+    If lIndex < m_lSstCount Then
+        If Peek(ArrPtr(m_laSstKeyPositions)) = 0 Then
+            ReDim m_laSstKeyPositions(0 To m_lSstCount - 1) As Long
+            For lIdx = 0 To UBound(m_uaSstHashEntries)
+                With m_uaSstHashEntries(lIdx)
+                    If .KeyPosition <> 0 Then
+                        m_laSstKeyPositions(.Index) = .KeyPosition
+                    End If
+                End With
+            Next
+        End If
+        SstFromIndex = SstFromPosition(m_laSstKeyPositions(lIndex))
+    End If
+    Exit Function
+EH:
+    If RaiseError(FUNC_NAME) = vbRetry Then
+        Resume
+    End If
 End Function
 
 Public Function SstDumpTable() As Variant
     Dim lPrevPosition   As Long
     Dim lIdx            As Long
+    '--- note: array of Variants for easier rehydration in cBiff12Writer
     Dim aRetVal()       As Variant
     
     If m_lSstCount <= 0 Then
@@ -1902,12 +2000,46 @@ Public Function SstDumpTable() As Variant
     SstDumpTable = aRetVal
 End Function
 
+#If DebugMode Then
+Public Function SstDumpInfo(Optional lEntriesUsed As Long, Optional lMaxListSize As Long) As Long
+    Const FUNC_NAME     As String = "SstDumpInfo"
+    Dim lIdx            As Long
+    Dim lNext           As Long
+    Dim lListSize       As Long
+    
+    On Error GoTo EH
+    lEntriesUsed = 0
+    lMaxListSize = 0
+    For lIdx = 0 To LNG_SST_HASH_SIZE - 1
+        If m_uaSstHashEntries(lIdx).KeyPosition <> 0 Then
+            lEntriesUsed = lEntriesUsed + 1
+            lNext = m_uaSstHashEntries(lIdx).NextEntry
+            lListSize = 0
+            Do While lNext <> -1
+                lListSize = lListSize + 1
+                lNext = m_uaSstHashEntries(lNext).NextEntry
+            Loop
+            If lListSize > lMaxListSize Then
+                lMaxListSize = lListSize
+            End If
+        End If
+    Next
+    SstDumpInfo = m_lSstCount
+    DebugPrint FUNC_NAME, MODULE_NAME, "EntriesUsed=" & lEntriesUsed & ", MaxListSize=" & lMaxListSize & ", AvgListSize=" & Format$(CDbl(m_lSstCount - lEntriesUsed) / Znl(lEntriesUsed, 1), "0.0")
+    Exit Function
+EH:
+    If RaiseError(FUNC_NAME) = vbRetry Then
+        Resume
+    End If
+End Function
+#End If
+
 '= zip VFS ===============================================================
 
 Public Function VfsSetFilePointer(lPosition As Long, ByVal lMoveMethod As Long) As Long
     If Not m_oXmlDocument Is Nothing Then
         If Peek(ArrPtr(m_baBuffer)) = 0 Then
-            m_baBuffer = ToUtf8Array(m_oXmlDocument.xml)
+            m_baBuffer = ToUtf8Array(m_oXmlDocument.Xml)
             m_lPosition = 0
             m_lSize = UBound(m_baBuffer) + 1
         End If
@@ -1955,6 +2087,7 @@ End Sub
 '= private ===============================================================
 
 Private Sub pvEnsureCapacity(ByVal lNewSize As Long)
+    Const MAX_STEP      As Long = 2 ^ 24 '--- 16MB
     Dim lCapacity       As Long
     
     If lNewSize > m_lSize Then
@@ -1962,7 +2095,11 @@ Private Sub pvEnsureCapacity(ByVal lNewSize As Long)
             lCapacity = 2 ^ Int(Log(lNewSize) / Log(2) + 1)
             ReDim m_baBuffer(0 To lCapacity - 1) As Byte
         ElseIf lNewSize > UBound(m_baBuffer) Then
-            lCapacity = 2 ^ Int(Log(lNewSize) / Log(2) + 1)
+            If lNewSize <= MAX_STEP Then
+                lCapacity = 2 ^ Int(Log(lNewSize) / Log(2) + 1)
+            Else
+                lCapacity = (lNewSize + MAX_STEP - 1) And -MAX_STEP
+            End If
             ReDim Preserve m_baBuffer(0 To lCapacity - 1) As Byte
         End If
         m_lSize = lNewSize
@@ -2029,7 +2166,24 @@ End Function
 Private Sub Class_Terminate()
     '--- clear peek buffer safe array
     RollingHash 0, 0
+    #If DebugMode Then
+        DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
+    #End If
 End Sub
 
+#Else
+
+#If DebugMode Then
+    Private Sub Class_Terminate()
+        DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
+    End Sub
+#End If
+
 #End If 'ImplUseShared
+
+#If DebugMode Then
+    Private Sub Class_Initialize()
+        DebugInstanceInit STR_MODULE_NAME, m_sDebugID, Me
+    End Sub
+#End If
 

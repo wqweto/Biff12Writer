@@ -92,7 +92,7 @@ Private Type OPENFILENAME
     nMaxFileTitle       As Long     ' Max Length of filename
     lpstrInitialDir     As Long     ' Starting Directory
     lpstrTitle          As Long     ' Title of window
-    flags               As Long
+    Flags               As Long
     nFileOffset         As Integer
     nFileExtension      As Integer
     lpstrDefExt         As Long
@@ -126,8 +126,7 @@ Private Const STR_FNERR_BUFFERTOOSMALL  As String = "Недостатъчно място за запаз
 '=========================================================================
 
 Private Sub RaiseError(sFunction As String)
-    PushError
-    PopRaiseError sFunction, MODULE_NAME
+    PopRaiseError sFunction, MODULE_NAME, PushError
 End Sub
 
 '=========================================================================
@@ -208,12 +207,12 @@ Retry:
         End If
     End If
     If eType = ucsOsdOpen Then
-        m_uOFN.flags = OFN_LONGNAMES Or OFN_CREATEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING '--- Or OFN_ENABLEHOOK
+        m_uOFN.Flags = OFN_LONGNAMES Or OFN_CREATEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING '--- Or OFN_ENABLEHOOK
         If GetOpenFileName(m_uOFN) Then
             ShowOpenSaveDialog = True
         End If
     Else
-        m_uOFN.flags = OFN_LONGNAMES Or OFN_OVERWRITEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING ' Or OFN_ENABLEHOOK
+        m_uOFN.Flags = OFN_LONGNAMES Or OFN_OVERWRITEPROMPT Or OFN_HIDEREADONLY Or OFN_EXTENSIONDIFFERENT Or OFN_EXPLORER Or OFN_ENABLESIZING ' Or OFN_ENABLEHOOK
         If GetSaveFileName(m_uOFN) Then
             ShowOpenSaveDialog = True
         End If
