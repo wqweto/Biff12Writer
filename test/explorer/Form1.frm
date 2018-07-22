@@ -287,7 +287,7 @@ Private Function pvDelayLoad(oZip As cZipArchive, oTree As TreeView, oNode As Co
     End If
     Screen.MousePointer = vbHourglass
     Set oStream = New cBiff12Part
-    If Not oZip.Extract(vbNullString, oNode.Key, oStream) Then
+    If Not oZip.Extract(oStream, oNode.Key) Then
         MsgBox "Error extracting. " & oZip.LastError, vbExclamation
         GoTo QH
     End If
@@ -600,7 +600,7 @@ Private Function pvTestBiff12Writer(sFile As String) As Boolean
             .AddStringCell 4, lRow & " - " & Now, oStyle(4)
         Next
         .Flush
-        .SaveToBlob baBuffer
+        .SaveToFile baBuffer
         WriteBinaryFile sFile, baBuffer
         
         If OpenClipboard(Me.hWnd) = 0 Then
@@ -611,7 +611,7 @@ Private Function pvTestBiff12Writer(sFile As String) As Boolean
         SetBinaryData AddFormat("Biff12"), baBuffer
         Call CloseClipboard
     End With
-    MsgBox "Save complete in " & Format$(Timer - dblTimer, "0.000"), vbExclamation
+    MsgBox "Save of " & sFile & " complete in " & Format$(Timer - dblTimer, "0.000"), vbExclamation
     pvTestBiff12Writer = True
     Exit Function
 EH:
@@ -667,10 +667,11 @@ Private Sub mnuDebug_Click(Index As Integer)
     Select Case Index
     Case ucsMnuMinSave
         pvTestMinimalSave TEMP_FOLDER & "\output.xlsb"
+        MsgBox TEMP_FOLDER & "\output.xlsb saved", vbExclamation
     Case ucsMnuTestWriter
         If pvTestBiff12Writer(TEMP_FOLDER & "\output.xlsb") Then
-        pvLoadBiff12File TreeView1, TEMP_FOLDER & "\output.xlsb"
-    End If
+            pvLoadBiff12File TreeView1, TEMP_FOLDER & "\output.xlsb"
+        End If
     End Select
 End Sub
 
