@@ -113,7 +113,7 @@ End Function
 '=========================================================================
 
 Property Get PartFolder(sPartName As String) As String
-    SearchCollection m_uState.PartFolders, "#" & sPartName, PartFolder
+    SearchCollection m_uState.PartFolders, "#" & sPartName, RetVal:=PartFolder
 End Property
 
 Property Let PartFolder(sPartName As String, sValue As String)

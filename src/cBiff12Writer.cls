@@ -331,30 +331,12 @@ Public Function SaveToFile(OutputFile As Variant) As Boolean
     
     On Error GoTo EH
     Flush
-    If m_oContainer.SaveToFile(OutputFile, Level:=m_lCompressionLevel) Then
-        '--- success
-        SaveToFile = True
+    If Not m_oContainer.SaveToFile(OutputFile, Level:=m_lCompressionLevel) Then
+        GoTo QH
     End If
-    Exit Function
-EH:
-    If PrintError(FUNC_NAME) = vbRetry Then
-        Resume
-    End If
-    Resume Next
-End Function
-
-Public Function SaveToBlob(baBuffer() As Byte) As Boolean
-    Const FUNC_NAME     As String = "SaveToFile"
-    Dim oOutput         As cBiff12Part
-    
-    On Error GoTo EH
-    Flush
-    Set oOutput = New cBiff12Part
-    If m_oContainer.SaveToFile(oOutput, Level:=m_lCompressionLevel) Then
-        baBuffer = oOutput.Contents
-        '--- success
-        SaveToBlob = True
-    End If
+    '--- success
+    SaveToFile = True
+QH:
     Exit Function
 EH:
     If PrintError(FUNC_NAME) = vbRetry Then

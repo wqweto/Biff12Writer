@@ -36,7 +36,7 @@ Private Const FILE_END                      As Long = 2
 '--- for WideCharToMultiByte
 Private Const CP_UTF8                       As Long = 65001
 
-Private Declare Function CLSIDFromString Lib "ole32.dll" (ByVal lpsz As Long, pclsid As Any) As Long
+Private Declare Function CLSIDFromString Lib "ole32" (ByVal lpsz As Long, pclsid As Any) As Long
 #If ImplUseShared = 0 Then
     Private Declare Function WideCharToMultiByte Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpDefaultChar As Long, ByVal lpUsedDefaultChar As Long) As Long
     Private Declare Function MultiByteToWideChar Lib "kernel32" (ByVal CodePage As Long, ByVal dwFlags As Long, lpMultiByteStr As Any, ByVal cchMultiByte As Long, ByVal lpWideCharStr As Long, ByVal cchWideChar As Long) As Long
