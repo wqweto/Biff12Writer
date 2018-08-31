@@ -109,7 +109,7 @@ End Property
 ' Methods
 '=========================================================================
 
-Public Function init( _
+Public Function Init( _
             ByVal lColCount As Long, _
             Optional ByVal UseSST As Boolean, _
             Optional ByVal CompressionLevel As Long = 6, _
@@ -133,7 +133,7 @@ Public Function init( _
     ReDim m_uRowHdr.m_rgBrtColspan(0 To 0) As UcsBiff12BrtColSpanType
     m_uRowHdr.m_rgBrtColspan(0).m_colLast = m_lColCount - 1
     '--- success
-    init = True
+    Init = True
 End Function
 
 Public Function AddSheet(Optional ByVal SheetName As String, Optional ByVal lColCount As Long) As Boolean
@@ -163,7 +163,7 @@ Public Function AddRow(Optional ByVal RowIndex As Long = -1, Optional RowHeight 
     End If
     If m_oSheetPart.Size = 0 Then
         pvBeginSheet m_oSheetPart
-    End If mm
+    End If
     m_uRowHdr.m_rw = RowIndex
     If RowHeight > 0 Then
         m_uRowHdr.m_miyRw = RowHeight
@@ -275,13 +275,13 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft 
             .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
             .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = lLeft
             .appendChild(oDoc.createElement("xdr:row")).nodeTypedValue = m_uRowHdr.m_rw
-            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lTOp
+            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lTop
         End With
         With .appendChild(oDoc.createElement("xdr:to"))
             .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
             .appendChild(oDoc.createElement("xdr:colOff")).nodeTypedValue = lLeft + lWidth
             .appendChild(oDoc.createElement("xdr:row")).nodeTypedValue = m_uRowHdr.m_rw
-            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lTOp + lHeight
+            .appendChild(oDoc.createElement("xdr:rowOff")).nodeTypedValue = lTop + lHeight
         End With
         With .appendChild(oDoc.createElement("xdr:pic"))
             With .appendChild(oDoc.createElement("xdr:nvPicPr"))
@@ -318,7 +318,7 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft 
                 With .appendChild(oDoc.createElement("a:xfrm"))
                     With .appendChild(oDoc.createElement("a:off"))
                         .setAttribute "x", lLeft
-                        .setAttribute "y", lTOp
+                        .setAttribute "y", lTop
                     End With
                     With .appendChild(oDoc.createElement("a:ext"))
                         .setAttribute "cx", lWidth
@@ -773,3 +773,4 @@ End Sub
         DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
     End Sub
 #End If
+
