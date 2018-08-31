@@ -209,6 +209,10 @@ Property Get SheetPart(Optional ByVal Index As Long = 1) As cBiff12Part
     End If
 End Property
 
+Property Get SheetPartCount() As Long
+  SheetPartCount = pvUbound(m_uState.SheetParts)
+End Property
+
 Property Get DrawingPart(Optional ByVal Index As Long = 1) As cBiff12Part
     Const STR_NS1       As String = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
     Const STR_NS2       As String = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -381,7 +385,7 @@ Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) 
     Next
     '--- construct root [Content_Types].xml
     Set oDoc = m_uState.Parts(0).Contents.XmlDocument
-    oDoc.LoadXml vbNullString
+    oDoc.LoadXML vbNullString
     oDoc.appendChild oDoc.createProcessingInstruction("xml", STR_XML_PROLOG)
     Set oRoot = oDoc.appendChild(oDoc.createNode(1, "Types", STR_NS))
     For Each vElem In cDefaults
@@ -460,7 +464,7 @@ Private Sub pvWriteRelations(oArchive As cZipArchive, sFile As String, uRels() A
             End With
         Next
         Set oPart = New cBiff12Part
-        oPart.Contents = ToUtf8Array(oDoc.Xml)
+        oPart.Contents = ToUtf8Array(oDoc.XML)
         lIdx = InStrRev(sFile, "\")
         oArchive.AddFile oPart, Mid$(Left$(sFile, lIdx) & "_rels\" & Mid$(sFile, lIdx + 1) & ".rels", 2)
     End If
@@ -575,4 +579,3 @@ End Sub
         DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
     End Sub
 #End If
-
