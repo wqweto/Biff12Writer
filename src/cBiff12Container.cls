@@ -209,6 +209,10 @@ Property Get SheetPart(Optional ByVal Index As Long = 1) As cBiff12Part
     End If
 End Property
 
+Property Get SheetPartCount() As Long
+  SheetPartCount = pvUbound(m_uState.SheetParts)
+End Property
+
 Property Get DrawingPart(Optional ByVal Index As Long = 1) As cBiff12Part
     Const STR_NS1       As String = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
     Const STR_NS2       As String = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -575,4 +579,3 @@ End Sub
         DebugInstanceTerm STR_MODULE_NAME, m_sDebugID
     End Sub
 #End If
-

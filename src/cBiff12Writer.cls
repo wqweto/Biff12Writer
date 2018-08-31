@@ -81,6 +81,10 @@ End Function
 ' Properties
 '=========================================================================
 
+Property Get ColRowFactor() As Long
+    ColRowFactor = 260
+End Property
+
 Property Get Container() As cBiff12Container
     Set Container = m_oContainer
 End Property
@@ -108,7 +112,8 @@ End Property
 Public Function Init( _
             ByVal lColCount As Long, _
             Optional ByVal UseSST As Boolean, _
-            Optional ByVal CompressionLevel As Long = 6) As Boolean
+            Optional ByVal CompressionLevel As Long = 6, _
+            Optional ByVal SheetName As String = "Sheet1") As Boolean
     Set m_oContainer = New cBiff12Container
     m_lColCount = lColCount
     m_lCompressionLevel = CompressionLevel
@@ -117,6 +122,7 @@ Public Function Init( _
         Set m_oStringsPart = m_oContainer.StringsPart
     End If
     Set m_oSheetPart = m_oContainer.SheetPart
+    m_oSheetPart.SheetName = SheetName
     Set m_oStylesCollection = New cBiff12Part
     pvBeginStyles m_oContainer.StylesPart
     If Not m_oStringsPart Is Nothing Then
@@ -128,6 +134,21 @@ Public Function Init( _
     m_uRowHdr.m_rgBrtColspan(0).m_colLast = m_lColCount - 1
     '--- success
     Init = True
+End Function
+
+Public Function AddSheet(Optional ByVal SheetName As String, Optional ByVal lColCount As Long) As Boolean
+    pvEndSheet m_oSheetPart
+    Set m_oSheetPart = m_oContainer.SheetPart(m_oContainer.SheetPartCount + 1)
+    m_oSheetPart.SheetName = IIf(Not IsMissing(SheetName), SheetName, "Sheet" & Format(m_oContainer.SheetPartCount, "0"))
+    '--- reset previous variables
+    m_lRowCount = 0
+    m_lColCount = Iif(Not IsMissing(lColCount), lColCount, 1)
+    ReDim m_aColWidth(0 To m_lColCount) As Long
+    '--- prepare current row struct
+    m_uRowHdr.m_ccolspan = 1
+    ReDim m_uRowHdr.m_rgBrtColspan(0 To 0) As UcsBiff12BrtColSpanType
+    m_uRowHdr.m_rgBrtColspan(0).m_colLast = m_lColCount - 1
+    AddSheet = True
 End Function
 
 Public Function AddRow(Optional ByVal RowIndex As Long = -1, Optional RowHeight As Long) As Boolean
@@ -248,7 +269,7 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft 
     baTemp = baData
     oImagePart.Contents = baTemp
     Set oDoc = oDrawingPart.XmlDocument
-    With oDoc.documentElement.appendChild(oDoc.createElement("xdr:twoCellAnchor"))
+    With oDoc.DocumentElement.appendChild(oDoc.createElement("xdr:twoCellAnchor"))
         .setAttribute "editAs", "oneCell"
         With .appendChild(oDoc.createElement("xdr:from"))
             .appendChild(oDoc.createElement("xdr:col")).nodeTypedValue = lColIndex
@@ -277,7 +298,7 @@ Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft 
             With .appendChild(oDoc.createElement("xdr:blipFill"))
                 With .appendChild(oDoc.createElement("a:blip"))
                     Set oAttr = oDoc.createNode(2, "r:embed", STR_NS3)
-                    oAttr.nodeValue = m_oContainer.GetRelID(oDrawingPart, oImagePart)
+                    oAttr.NodeValue = m_oContainer.GetRelID(oDrawingPart, oImagePart)
                     .setAttributeNode oAttr
                     .setAttribute "cstate", "print"
                     With .appendChild(oDoc.createElement("a:extLst"))
@@ -658,6 +679,7 @@ Private Sub pvEndWorkbook(oPart As cBiff12Part)
     Dim uFileVersion    As UcsBiff12BrtFileVersionType
     Dim uBundle         As UcsBiff12BrtBundleShType
     Dim uOleSize        As UcsBiff12UncheckedRfXType
+    Dim i As Long
     
     With oPart
         .Output ucsBrtBeginBook
@@ -669,10 +691,15 @@ Private Sub pvEndWorkbook(oPart As cBiff12Part)
             .OutputBrtFileVersion uFileVersion
 #End If
             .Output ucsBrtBeginBundleShs
-                uBundle.m_iTabID = 1
+            If m_oContainer.SheetPartCount > 0 Then
+              For i = 1 To m_oContainer.SheetPartCount
+                Set m_oSheetPart = m_oContainer.SheetPart(i)
+                uBundle.m_iTabID = i
                 uBundle.m_strRelID = m_oContainer.GetRelID(oPart, m_oSheetPart)
-                uBundle.m_strName = "Sheet1"
+                uBundle.m_strName = m_oSheetPart.SheetName
                 .OutputBrtBundleSh uBundle
+              Next
+            End If
             .Output ucsBrtEndBundleShs
             uOleSize.m_rwLast = m_lRowCount - 1
             uOleSize.m_colLast = m_lColCount - 1
