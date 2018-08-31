@@ -1035,7 +1035,7 @@ Private Const VT_I8                                 As Long = 20
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
 Private Declare Function ApiEmptyByteArray Lib "oleaut32" Alias "SafeArrayCreateVector" (Optional ByVal VarType As VbVarType = vbByte, Optional ByVal Low As Long = 0, Optional ByVal Count As Long = 0) As Byte()
-Private Declare Function VariantChangeType Lib "oleaut32" (Dest As Variant, src As Variant, ByVal wFlags As Integer, ByVal vt As Long) As Long
+Private Declare Function VariantChangeType Lib "oleaut32" (dest As Variant, src As Variant, ByVal wFlags As Integer, ByVal vt As Long) As Long
 
 '=========================================================================
 ' Constants and member variables
@@ -1055,6 +1055,7 @@ Private m_laSstKeyPositions()   As Long
 Private m_lSstCount             As Long
 Private m_lSstCapacity          As Long
 Private m_sName                 As String
+Private m_sSheetName            As String
 Private m_sType                 As String
 Private m_oXmlDocument          As Object
 #If ImplUseShared = 0 Then
@@ -1142,7 +1143,7 @@ End Property
 
 Property Get Contents() As Byte()
     If Not m_oXmlDocument Is Nothing Then
-        Contents = ToUtf8Array(m_oXmlDocument.Xml)
+        Contents = ToUtf8Array(m_oXmlDocument.XML)
     ElseIf m_lSize > 0 Then
         ReDim Preserve m_baBuffer(0 To m_lSize - 1) As Byte
         Contents = m_baBuffer
@@ -1153,7 +1154,7 @@ End Property
 
 Property Let Contents(baValue() As Byte)
     If Not m_oXmlDocument Is Nothing Then
-        m_oXmlDocument.Xml = FromUtf8Array(baValue)
+        m_oXmlDocument.XML = FromUtf8Array(baValue)
     Else
         m_baBuffer = baValue
         m_lPosition = 0
@@ -1171,6 +1172,14 @@ End Property
 
 Property Let Name(sValue As String)
     m_sName = sValue
+End Property
+
+Property Get SheetName() As String
+    SheetName = m_sSheetName
+End Property
+
+Property Let SheetName(sValue As String)
+    m_sSheetName = sValue
 End Property
 
 Property Get Type_() As String
@@ -2039,7 +2048,7 @@ End Function
 Public Function VfsSetFilePointer(lPosition As Long, ByVal lMoveMethod As Long) As Long
     If Not m_oXmlDocument Is Nothing Then
         If Peek(ArrPtr(m_baBuffer)) = 0 Then
-            m_baBuffer = ToUtf8Array(m_oXmlDocument.Xml)
+            m_baBuffer = ToUtf8Array(m_oXmlDocument.XML)
             m_lPosition = 0
             m_lSize = UBound(m_baBuffer) + 1
         End If
@@ -2186,4 +2195,3 @@ End Sub
         DebugInstanceInit STR_MODULE_NAME, m_sDebugID, Me
     End Sub
 #End If
-
