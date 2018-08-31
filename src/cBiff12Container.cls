@@ -385,7 +385,7 @@ Public Function SaveToFile(OutputFile As Variant, Optional ByVal Level As Long) 
     Next
     '--- construct root [Content_Types].xml
     Set oDoc = m_uState.Parts(0).Contents.XmlDocument
-    oDoc.LoadXML vbNullString
+    oDoc.LoadXml vbNullString
     oDoc.appendChild oDoc.createProcessingInstruction("xml", STR_XML_PROLOG)
     Set oRoot = oDoc.appendChild(oDoc.createNode(1, "Types", STR_NS))
     For Each vElem In cDefaults
@@ -464,7 +464,7 @@ Private Sub pvWriteRelations(oArchive As cZipArchive, sFile As String, uRels() A
             End With
         Next
         Set oPart = New cBiff12Part
-        oPart.Contents = ToUtf8Array(oDoc.XML)
+        oPart.Contents = ToUtf8Array(oDoc.Xml)
         lIdx = InStrRev(sFile, "\")
         oArchive.AddFile oPart, Mid$(Left$(sFile, lIdx) & "_rels\" & Mid$(sFile, lIdx + 1) & ".rels", 2)
     End If
