@@ -136,13 +136,13 @@ Public Function init( _
     init = True
 End Function
 
-Public Function AddSheet(Optional ByVal SheetName As String = "", Optional ByVal lColCount As Long = 1) As Boolean
+Public Function AddSheet(Optional ByVal SheetName As String, Optional ByVal lColCount As Long) As Boolean
     pvEndSheet m_oSheetPart
     Set m_oSheetPart = m_oContainer.SheetPart(m_oContainer.SheetPartCount + 1)
-    m_oSheetPart.SheetName = IIf(SheetName <> "", SheetName, "Sheet" & Format(m_oContainer.SheetPartCount, "0"))
+    m_oSheetPart.SheetName = IIf(Not IsMissing(SheetName), SheetName, "Sheet" & Format(m_oContainer.SheetPartCount, "0"))
     '--- reset previous variables
     m_lRowCount = 0
-    m_lColCount = lColCount
+    m_lColCount = Iif(Not IsMissing(lColCount), lColCount, 1)
     ReDim m_aColWidth(0 To m_lColCount) As Long
     '--- prepare current row struct
     m_uRowHdr.m_ccolspan = 1
@@ -163,7 +163,7 @@ Public Function AddRow(Optional ByVal RowIndex As Long = -1, Optional RowHeight 
     End If
     If m_oSheetPart.Size = 0 Then
         pvBeginSheet m_oSheetPart
-    End If
+    End If mm
     m_uRowHdr.m_rw = RowIndex
     If RowHeight > 0 Then
         m_uRowHdr.m_miyRw = RowHeight
@@ -256,7 +256,7 @@ EH:
     Resume Next
 End Function
 
-Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft As Long, ByVal lTOp As Long, ByVal lWidth As Long, ByVal lHeight As Long)
+Public Function AddImage(ByVal lColIndex As Long, baData() As Byte, ByVal lLeft As Long, ByVal lTop As Long, ByVal lWidth As Long, ByVal lHeight As Long)
     Const STR_NS3       As String = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     Const STR_NS4       As String = "http://schemas.microsoft.com/office/drawing/2010/main"
     Dim oDrawingPart    As cBiff12Part
