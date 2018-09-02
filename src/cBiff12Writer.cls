@@ -113,7 +113,7 @@ Public Function Init( _
             ByVal lColCount As Long, _
             Optional ByVal UseSST As Boolean, _
             Optional ByVal CompressionLevel As Long = 6, _
-            Optional ByVal SheetName As String = "Sheet1") As Boolean
+            Optional ByVal SheetName As String) As Boolean
     Set m_oContainer = New cBiff12Container
     m_lColCount = lColCount
     m_lCompressionLevel = CompressionLevel
@@ -122,7 +122,7 @@ Public Function Init( _
         Set m_oStringsPart = m_oContainer.StringsPart
     End If
     Set m_oSheetPart = m_oContainer.SheetPart
-    m_oSheetPart.SheetName = SheetName
+    m_oSheetPart.SheetName = IIf(LenB(SheetName) > 0, SheetName, "Sheet1")
     Set m_oStylesCollection = New cBiff12Part
     pvBeginStyles m_oContainer.StylesPart
     If Not m_oStringsPart Is Nothing Then
@@ -136,13 +136,13 @@ Public Function Init( _
     Init = True
 End Function
 
-Public Function AddSheet(Optional ByVal SheetName As String, Optional ByVal lColCount As Long) As Boolean
+Public Function AddSheet(Optional ByVal SheetName As String, Optional ByVal lColCount As Long = 0) As Boolean
     pvEndSheet m_oSheetPart
     Set m_oSheetPart = m_oContainer.SheetPart(m_oContainer.SheetPartCount + 1)
-    m_oSheetPart.SheetName = IIf(Not IsMissing(SheetName), SheetName, "Sheet" & Format(m_oContainer.SheetPartCount, "0"))
+    m_oSheetPart.SheetName = IIf(LenB(SheetName) > 0, SheetName, "Sheet" & Format(m_oContainer.SheetPartCount, "0"))
     '--- reset previous variables
     m_lRowCount = 0
-    m_lColCount = Iif(Not IsMissing(lColCount), lColCount, 1)
+    m_lColCount = Iif(lColCount > 0, lColCount, m_lColCount)
     ReDim m_aColWidth(0 To m_lColCount) As Long
     '--- prepare current row struct
     m_uRowHdr.m_ccolspan = 1
