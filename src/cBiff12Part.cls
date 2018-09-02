@@ -1055,6 +1055,7 @@ Private m_laSstKeyPositions()   As Long
 Private m_lSstCount             As Long
 Private m_lSstCapacity          As Long
 Private m_sName                 As String
+Private m_sSheetName            As String
 Private m_sType                 As String
 Private m_oXmlDocument          As Object
 #If ImplUseShared = 0 Then
@@ -1171,6 +1172,14 @@ End Property
 
 Property Let Name(sValue As String)
     m_sName = sValue
+End Property
+
+Property Get SheetName() As String
+    SheetName = m_sSheetName
+End Property
+
+Property Let SheetName(sValue As String)
+    m_sSheetName = sValue
 End Property
 
 Property Get Type_() As String
