@@ -1861,7 +1861,10 @@ End Function
 '= shared strings table ==================================================
 
 Public Function SstGetIndex(sText As String) As Long
-    SstGetIndex = m_uaSstHashEntries(pvSstGetInternal(sText)).Index
+    Dim lIdx            As Long
+    
+    lIdx = pvSstGetInternal(sText)
+    SstGetIndex = m_uaSstHashEntries(lIdx).Index
 End Function
 
 Public Function SstGetPosition(sText As String) As Long
