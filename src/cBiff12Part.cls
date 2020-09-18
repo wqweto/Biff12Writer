@@ -1868,7 +1868,10 @@ Public Function SstGetIndex(sText As String) As Long
 End Function
 
 Public Function SstGetPosition(sText As String) As Long
-    SstGetPosition = m_uaSstHashEntries(pvSstGetInternal(sText)).KeyPosition
+    Dim lIdx            As Long
+    
+    lIdx = pvSstGetInternal(sText)
+    SstGetPosition = m_uaSstHashEntries(lIdx).KeyPosition
 End Function
 
 Public Function pvSstGetInternal(sText As String) As Long
