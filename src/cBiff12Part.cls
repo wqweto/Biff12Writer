@@ -2156,14 +2156,11 @@ End Function
 Private Function RollingHash(ByVal lPtr As Long, ByVal lSize As Long) As Long
     Dim lIdx            As Long
     
-    If lPtr = 0 Then
-        Call CopyMemory(ByVal ArrPtr(m_aPeekBuffer), 0&, 4)
-        m_uPeekArray.cDims = 0
-        Exit Function
-    ElseIf m_uPeekArray.cDims = 0 Then
+    If m_uPeekArray.cDims = 0 Then
         With m_uPeekArray
             .cDims = 1
             .cbElements = 2
+            .fFeatures = 1 ' FADF_AUTO
         End With
         Call CopyMemory(ByVal ArrPtr(m_aPeekBuffer), VarPtr(m_uPeekArray), 4)
     End If
