@@ -11,7 +11,7 @@
 *.dll
 *.exe
 *.pdb
-_del/*
+**/_del/*
 ~*
 *.xlsb
 
